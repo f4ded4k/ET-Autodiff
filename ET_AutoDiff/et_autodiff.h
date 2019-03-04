@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 namespace et
 {
 
@@ -11,7 +13,7 @@ namespace et
 			return static_cast<Derived const&>(*this);
 		}
 
-		constexpr auto operator()() const {
+		constexpr decltype(auto) operator()() const {
 			return getSelf()();
 		}
 	};
@@ -20,12 +22,44 @@ namespace et
 	class ConstantExpr : public Expr<ConstantExpr<ValueType>> {
 
 	private:
-		const ValueType& mValue;
+		const ValueType mValue;
 
 	public:
 		constexpr ConstantExpr(const ValueType& Value) : mValue(Value) {}
 
-		constexpr auto operator()() const {
+		constexpr auto& operator()() const {
+			return mValue;
+		}
+	};
+
+	template <typename ValueType>
+	class PlaceholderExpr : public Expr<PlaceholderExpr<ValueType>> {
+
+	private:
+		std::optional<std::reference_wrapper<ValueType>> mValue;
+
+	public:
+		constexpr PlaceholderExpr() : mValue(std::nullopt) {}
+
+		constexpr auto& operator()() const {
+			return mValue.value().get();
+		}
+
+		constexpr void feedValue(ValueType& Value) {
+			mValue = Value;
+		}
+	};
+
+	template <typename ValueType>
+	class VariableExpr : public Expr<VariableExpr<ValueType>> {
+
+	private:
+		ValueType mValue;
+
+	public:
+		constexpr VariableExpr(const ValueType& InitValue) : mValue(InitValue) {}
+
+		constexpr auto& operator()() const {
 			return mValue;
 		}
 	};
