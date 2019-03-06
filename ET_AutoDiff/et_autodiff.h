@@ -4,6 +4,28 @@
 
 namespace et
 {
+	using std::pow;
+
+	struct Types {
+
+		template <typename FirstExprType, typename SecondExprType>
+		using AddExprReturnType = decltype(std::declval<FirstExprType>()() + std::declval<SecondExprType>()());
+
+		template <typename FirstExprType, typename SecondExprType>
+		using SubtractExprReturnType = decltype(std::declval<FirstExprType>()() - std::declval<SecondExprType>()());
+
+		template <typename FirstExprType, typename SecondExprType>
+		using MultiplyExprReturnType = decltype(std::declval<FirstExprType>()() * std::declval<SecondExprType>()());
+
+		template <typename FirstExprType, typename SecondExprType>
+		using DivideExprReturnType = decltype(std::declval<FirstExprType>()() / std::declval<SecondExprType>()());
+
+		template <typename FirstExprType>
+		using NegateExprReturnType = decltype(-std::declval<FirstExprType>()());
+
+		template <typename FirstExprType, typename SecondExprType>
+		using ExponentExprReturnType = decltype(pow(std::declval<FirstExprType>()(), std::declval<SecondExprType>()()));
+	};
 
 	template <typename Derived>
 	class Expr {
@@ -22,12 +44,12 @@ namespace et
 	class ConstantExpr : public Expr<ConstantExpr<ValueType>> {
 
 	private:
-		const ValueType mValue;
+		ValueType const mValue;
 
 	public:
-		constexpr ConstantExpr(const ValueType& Value) : mValue(Value) {}
+		constexpr ConstantExpr(ValueType const& Value) : mValue(Value) {}
 
-		constexpr auto& operator()() const {
+		constexpr ValueType const& operator()() const {
 			return mValue;
 		}
 	};
@@ -36,13 +58,13 @@ namespace et
 	class PlaceholderExpr : public Expr<PlaceholderExpr<ValueType>> {
 
 	private:
-		std::optional<std::reference_wrapper<ValueType>> mValue;
+		std::optional<ValueType> mValue;
 
 	public:
 		constexpr PlaceholderExpr() : mValue(std::nullopt) {}
 
-		constexpr auto& operator()() const {
-			return mValue.value().get();
+		constexpr ValueType const& operator()() const {
+			return mValue.value();
 		}
 
 		constexpr void feedValue(ValueType& Value) {
@@ -57,9 +79,9 @@ namespace et
 		ValueType mValue;
 
 	public:
-		constexpr VariableExpr(const ValueType& InitValue) : mValue(InitValue) {}
+		constexpr VariableExpr(ValueType const& InitValue) : mValue(InitValue) {}
 
-		constexpr auto& operator()() const {
+		constexpr ValueType const& operator()() const {
 			return mValue;
 		}
 	};
@@ -68,14 +90,15 @@ namespace et
 	class AddExpr : public Expr<AddExpr<FirstExprType, SecondExprType>> {
 
 	private:
-		const FirstExprType& mFirstExpr;
-		const SecondExprType& mSecondExpr;
+		FirstExprType const& mFirstExpr;
+		SecondExprType const& mSecondExpr;
+		using ReturnType = Types::AddExprReturnType<FirstExprType, SecondExprType>;
 
 	public:
-		constexpr AddExpr(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr)
+		constexpr AddExpr(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr)
 			: mFirstExpr(FirstExpr.getSelf()), mSecondExpr(SecondExpr.getSelf()) {}
-
-		constexpr auto operator()() const {
+	
+		constexpr ReturnType operator()() const {
 			return mFirstExpr() + mSecondExpr();
 		}
 	};
@@ -84,14 +107,15 @@ namespace et
 	class SubtractExpr : public Expr<SubtractExpr<FirstExprType, SecondExprType>> {
 
 	private:
-		const FirstExprType& mFirstExpr;
-		const SecondExprType& mSecondExpr;
+		FirstExprType const& mFirstExpr;
+		SecondExprType const& mSecondExpr;
+		using ReturnType = Types::SubtractExprReturnType<FirstExprType, SecondExprType>;
 
 	public:
-		constexpr SubtractExpr(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr)
+		constexpr SubtractExpr(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr)
 			: mFirstExpr(FirstExpr.getSelf()), mSecondExpr(SecondExpr.getSelf()) {}
 
-		constexpr auto operator()() const {
+		constexpr ReturnType operator()() const {
 			return mFirstExpr() - mSecondExpr();
 		}
 	};
@@ -100,14 +124,15 @@ namespace et
 	class MultiplyExpr : public Expr<MultiplyExpr<FirstExprType, SecondExprType>> {
 
 	private:
-		const FirstExprType& mFirstExpr;
-		const SecondExprType& mSecondExpr;
+		FirstExprType const& mFirstExpr;
+		SecondExprType const& mSecondExpr;
+		using ReturnType = Types::MultiplyExprReturnType<FirstExprType, SecondExprType>;
 
 	public:
-		constexpr MultiplyExpr(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr)
+		constexpr MultiplyExpr(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr)
 			: mFirstExpr(FirstExpr.getSelf()), mSecondExpr(SecondExpr.getSelf()) {}
 
-		constexpr auto operator()() const {
+		constexpr ReturnType operator()() const {
 			return mFirstExpr()* mSecondExpr();
 		}
 	};
@@ -116,36 +141,78 @@ namespace et
 	class DivideExpr : public Expr<DivideExpr<FirstExprType, SecondExprType >> {
 
 	private:
-		const FirstExprType& mFirstExpr;
-		const SecondExprType& mSecondExpr;
+		FirstExprType const& mFirstExpr;
+		SecondExprType const& mSecondExpr;
+		using ReturnType = Types::DivideExprReturnType<FirstExprType, SecondExprType>;
 
 	public:
-		constexpr DivideExpr(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr)
+		constexpr DivideExpr(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr)
 			: mFirstExpr(FirstExpr.getSelf()), mSecondExpr(SecondExpr.getSelf()) {}
 
-		constexpr auto operator()() const {
+		constexpr ReturnType operator()() const {
 			return mFirstExpr() / mSecondExpr();
 		}
 	};
 
+	template <typename FirstExprType>
+	class NegateExpr : public Expr<NegateExpr<FirstExprType>> {
+
+	private:
+		FirstExprType const& mFirstExpr;
+		using ReturnType = Types::NegateExprReturnType<FirstExprType>;
+
+	public:
+		constexpr NegateExpr(Expr<FirstExprType> const& FirstExpr) : mFirstExpr(FirstExpr.getSelf()) {}
+
+		constexpr ReturnType operator()() const {
+			return -(mFirstExpr());
+		}
+	};
+
 	template <typename FirstExprType, typename SecondExprType>
-	constexpr auto operator+(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr) {
+	class ExponentExpr : public Expr<ExponentExpr<FirstExprType, SecondExprType>> {
+
+	private:
+		FirstExprType const& mFirstExpr;
+		SecondExprType const& mSecondExpr;
+		using ReturnType = Types::ExponentExprReturnType<FirstExprType, SecondExprType>;
+
+	public:
+		constexpr ExponentExpr(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr)
+			: mFirstExpr(FirstExpr.getSelf()), mSecondExpr(SecondExpr.getSelf()) {}
+
+		constexpr ReturnType operator()() const {
+			return pow(mFirstExpr(), mSecondExpr());
+		}
+	};
+
+	template <typename FirstExprType, typename SecondExprType>
+	constexpr AddExpr<FirstExprType, SecondExprType> operator+(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr) {
 		return AddExpr(FirstExpr, SecondExpr);
 	}
 
 	template <typename FirstExprType, typename SecondExprType>
-	constexpr auto operator-(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr) {
+	constexpr SubtractExpr<FirstExprType, SecondExprType> operator-(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr) {
 		return SubtractExpr(FirstExpr, SecondExpr);
 	}
 
 	template <typename FirstExprType, typename SecondExprType>
-	constexpr auto operator*(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr) {
+	constexpr MultiplyExpr<FirstExprType, SecondExprType> operator*(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr) {
 		return MultiplyExpr(FirstExpr, SecondExpr);
 	}
 
 	template <typename FirstExprType, typename SecondExprType>
-	constexpr auto operator/(const Expr<FirstExprType>& FirstExpr, const Expr<SecondExprType>& SecondExpr) {
+	constexpr DivideExpr<FirstExprType, SecondExprType> operator/(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr) {
 		return DivideExpr(FirstExpr, SecondExpr);
 	}
 
+	template <typename FirstExprType>
+	constexpr NegateExpr<FirstExprType> operator-(Expr<FirstExprType> const& FirstExpr) {
+		return NegateExpr(FirstExpr);
+	}
+
+	template <typename FirstExprType, typename SecondExprType>
+	constexpr ExponentExpr<FirstExprType, SecondExprType> pow(Expr<FirstExprType> const& FirstExpr, Expr<SecondExprType> const& SecondExpr) {
+		return ExponentExpr(FirstExpr, SecondExpr);
+	}
 }

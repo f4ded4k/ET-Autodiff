@@ -5,9 +5,9 @@
 
 constexpr auto Do() {
 
-	constexpr et::ConstantExpr x = -4, z = 6;
-	constexpr et::ConstantExpr y = 8.7;
-	auto b = x + y - y * z + y / z;
+	constexpr et::ConstantExpr x = 4, z = 1;
+	constexpr et::ConstantExpr y = 0.5;
+	auto b = et::pow(x, y) + (-z);
 	return b();
 }
 
