@@ -3,13 +3,16 @@
 #include "et_autodiff.h"
 
 
-constexpr auto Do() {
+auto Do() {
 
-	constexpr et::ConstantExpr x = 4, z = 1;
-	constexpr et::ConstantExpr y = 0.5;
-	auto b = et::pow(x, y) + (-z);
+	constexpr Et::ConstantExpr x = 4, z = 1;
+	constexpr Et::ConstantExpr y = 0.5;
+
+	auto b = x + (y * y) / y + Et::pow(x, y) + (-y);
+	
 	return b();
 }
+
 
 int main() { 
 
