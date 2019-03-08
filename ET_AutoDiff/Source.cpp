@@ -5,13 +5,13 @@
 
 auto Do() {
 
-	constexpr Et::ConstantExpr x = 4, z = 1;
-	constexpr Et::ConstantExpr y = 0.5;
+	constexpr Et::ConstantExpr x = 4.0, y = 0.5, z = 1.0;
 
 	auto b = x + (y * y) / y + Et::pow(x, y) + (-y);
-	
+
 	return b();
 }
+
 
 
 int main() { 
