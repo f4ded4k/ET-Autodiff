@@ -3,7 +3,6 @@
 #include <type_traits>
 #include <tuple>
 #include <cmath>
-#include <optional>
 #include "tensor.h"
 
 namespace Et {
@@ -43,7 +42,7 @@ namespace Et {
 	template <typename V>
 	class ConstantExpr : public Expr<ConstantExpr<V>>, private details::TerminalExpr
 	{
-		using Value_t = V;
+		using Value_t = std::remove_reference_t<V>;
 
 	private:
 		V const _value;
@@ -51,13 +50,13 @@ namespace Et {
 	public:
 		constexpr ConstantExpr(Num::Tensor<V> const& value) : _value(value.GetSelf()) {}
 
-		constexpr V const& operator()() const
+		constexpr Value_t const& operator()() const
 		{
 			return _value;
 		}
 
 		template <int I, typename T>
-		constexpr V const& Eval(T&& tuple) const
+		constexpr Value_t const& Eval(T&& tuple) const
 		{
 			return _value;
 		}
@@ -66,24 +65,25 @@ namespace Et {
 	template <typename V>
 	class PlaceholderExpr : public Expr<PlaceholderExpr<V>>, private details::TerminalExpr
 	{
-		using Value_t = V;
+		using Value_t = std::remove_reference_t<V>;
 
 	private:
-		std::optional<V> _value;
+		bool _is_default;
+		V _value;
 
 	public:
-		constexpr PlaceholderExpr() : _value(std::nullopt) {}
+		constexpr PlaceholderExpr() : _value(0.0), _is_default(true) {}
 
 
-		constexpr V const& operator()() const
+		constexpr Value_t const& operator()() const
 		{
-			return _value.value();
+			return _value;
 		}
 
 		template <int I, typename T>
-		constexpr V const& Eval(T&& tuple) const
+		constexpr Value_t const& Eval(T&& tuple) const
 		{
-			return _value.value();
+			return _value;
 		}
 
 		constexpr void FeedValue(V const& value)
@@ -95,7 +95,7 @@ namespace Et {
 	template <typename V>
 	class VariableExpr : public Expr<VariableExpr<V>>, private details::TerminalExpr
 	{
-		using Value_t = V;
+		using Value_t = std::remove_reference_t<V>;
 
 	private:
 		V _value;
@@ -103,13 +103,13 @@ namespace Et {
 	public:
 		constexpr VariableExpr(Num::Tensor<V> const& value) : _value(value.GetSelf()) {}
 
-		constexpr V const& operator()() const
+		constexpr Value_t const& operator()() const
 		{
 			return _value;
 		}
 
 		template <int I, typename T>
-		constexpr V const& Eval(T&& tuple) const
+		constexpr Value_t const& Eval(T&& tuple) const
 		{
 			return _value;
 		}
@@ -118,13 +118,13 @@ namespace Et {
 	template <typename E1, typename E2>
 	class AddExpr : public Expr<AddExpr<E1, E2>>, private details::BinaryExpr
 	{
-		using FirstExpr_t = E1;
-		using SecondExpr_t = E2;
+		using FirstExpr_t = std::remove_reference_t<E1>;
+		using SecondExpr_t = std::remove_reference_t<E2>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using SecondValue_t = std::remove_reference_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using SecondLocalGrad_t = SecondValue_t;
-		using Value_t = decltype(std::declval<E1>()() + std::declval<E2>()());
+		using Value_t = std::remove_reference_t<decltype(std::declval<E1>()() + std::declval<E2>()())>;
 
 	private:
 		E1 const& _first_expr;
@@ -150,13 +150,13 @@ namespace Et {
 	template <typename E1, typename E2>
 	class MultiplyExpr : public Expr<MultiplyExpr<E1, E2>>, private details::BinaryExpr
 	{
-		using FirstExpr_t = E1;
-		using SecondExpr_t = E2;
+		using FirstExpr_t = std::remove_reference_t<E1>;
+		using SecondExpr_t = std::remove_reference_t<E2>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using SecondValue_t = std::remove_reference_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = SecondValue_t;
 		using SecondLocalGrad_t = FirstValue_t;
-		using Value_t = decltype(std::declval<E1>()()* std::declval<E2>()());
+		using Value_t = std::remove_reference_t<decltype(std::declval<E1>()()* std::declval<E2>()())>;
 
 	private:
 		E1 const& _first_expr;
@@ -182,13 +182,13 @@ namespace Et {
 	template <typename E1, typename E2>
 	class SubtractExpr : public Expr<SubtractExpr<E1, E2>>, private details::BinaryExpr
 	{
-		using FirstExpr_t = E1;
-		using SecondExpr_t = E2;
+		using FirstExpr_t = std::remove_reference_t<E1>;
+		using SecondExpr_t = std::remove_reference_t<E2>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using SecondValue_t = std::remove_reference_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using SecondLocalGrad_t = SecondValue_t;
-		using Value_t = decltype(std::declval<E1>()() - std::declval<E2>()());
+		using Value_t = std::remove_reference_t<decltype(std::declval<E1>()() - std::declval<E2>()())>;
 
 	private:
 		E1 const& _first_expr;
@@ -214,13 +214,13 @@ namespace Et {
 	template <typename E1, typename E2>
 	class DivideExpr : public Expr<DivideExpr<E1, E2>>, private details::BinaryExpr
 	{
-		using FirstExpr_t = E1;
-		using SecondExpr_t = E2;
+		using FirstExpr_t = std::remove_reference_t<E1>;
+		using SecondExpr_t = std::remove_reference_t<E2>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using SecondValue_t = std::remove_reference_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using SecondLocalGrad_t = SecondValue_t;
-		using Value_t = decltype(std::declval<E1>()() / std::declval<E2>()());
+		using Value_t = std::remove_reference_t<decltype(std::declval<E1>()() / std::declval<E2>()())>;
 
 	private:
 		E1 const& _first_expr;
@@ -246,13 +246,13 @@ namespace Et {
 	template <typename E1, typename E2>
 	class PowerExpr : public Expr<PowerExpr<E1, E2>>, private details::BinaryExpr
 	{
-		using FirstExpr_t = E1;
-		using SecondExpr_t = E2;
+		using FirstExpr_t = std::remove_reference_t<E1>;
+		using SecondExpr_t = std::remove_reference_t<E2>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using SecondValue_t = std::remove_reference_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using SecondLocalGrad_t = SecondValue_t;
-		using Value_t = decltype(Num::pow(std::declval<E1>()(), std::declval<E2>()()));
+		using Value_t = std::remove_reference_t<decltype(Num::pow(std::declval<E1>()(), std::declval<E2>()()))>;
 
 	private:
 		E1 const& _first_expr;
@@ -278,10 +278,10 @@ namespace Et {
 	template <typename E1>
 	class NegateExpr : public Expr<NegateExpr<E1>>, private details::UnaryExpr
 	{
-		using First_Expr_t = E1;
+		using FirstExpr_t = std::remove_reference_t<E1>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
-		using Value_t = decltype(-std::declval<E1>()());
+		using Value_t = std::remove_reference_t<decltype(-std::declval<E1>()())>;
 
 	private:
 		E1 const& _first_expr;
@@ -306,10 +306,10 @@ namespace Et {
 	template <typename E1>
 	class LogExpr : public Expr<LogExpr<E1>>, private details::UnaryExpr
 	{
-		using First_Expr_t = E1;
+		using FirstExpr_t = std::remove_reference_t<E1>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
-		using Value_t = decltype(Num::log(std::declval<E1>()()));
+		using Value_t = std::remove_reference_t<decltype(Num::log(std::declval<E1>()()))>;
 
 	private:
 		E1 const& _first_expr;
@@ -334,10 +334,10 @@ namespace Et {
 	template <typename E1>
 	class SinExpr : public Expr<SinExpr<E1>>, private details::UnaryExpr
 	{
-		using First_Expr_t = E1;
+		using FirstExpr_t = std::remove_reference_t<E1>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
-		using Value_t = decltype(Num::sin(std::declval<E1>()()));
+		using Value_t = std::remove_reference_t<decltype(Num::sin(std::declval<E1>()()))>;
 
 	private:
 		E1 const& _first_expr;
@@ -362,10 +362,10 @@ namespace Et {
 	template <typename E1>
 	class CosExpr : public Expr<CosExpr<E1>>, private details::UnaryExpr
 	{
-		using First_Expr_t = E1;
+		using FirstExpr_t = std::remove_reference_t<E1>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
-		using Value_t = decltype(Num::cos(std::declval<E1>()()));
+		using Value_t = std::remove_reference_t<decltype(Num::cos(std::declval<E1>()()))>;
 
 	private:
 		E1 const& _first_expr;
@@ -390,10 +390,10 @@ namespace Et {
 	template <typename E1>
 	class TanExpr : public Expr<TanExpr<E1>>, private details::UnaryExpr
 	{
-		using First_Expr_t = E1;
+		using FirstExpr_t = std::remove_reference_t<E1>;
 		using FirstValue_t = std::remove_reference_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
-		using Value_t = decltype(Num::tan(std::declval<E1>()()));
+		using Value_t = std::remove_reference_t<decltype(Num::tan(std::declval<E1>()()))>;
 
 	private:
 		E1 const& _first_expr;
