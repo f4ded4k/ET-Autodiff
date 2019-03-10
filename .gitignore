@@ -341,3 +341,4 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 ET_AutoDiff/Progress.txt
+ET_AutoDiff/et_autodiff1.h

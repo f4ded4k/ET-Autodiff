@@ -1,18 +1,18 @@
 #include <iostream>
 #include <chrono>
 #include "et_autodiff.h"
+#include "tensor.h"
 
 
-auto Do() {
 
-	constexpr Et::ConstantExpr x = 4.0, y = 0.5, z = 1.0;
+double Do() {
 
-	auto b = x + (y * y) / y + Et::pow(x, y) + (-y);
+	Et::ConstantExpr x = Et::Double(5.0), y = Et::Double(3.4), z = Et::Double(1.2);
+	
+	auto b = (x - y) + (x * y) + (x / z) + -x + sin(cos(y) + tan(log(z))); // 17.06
 
 	return b();
 }
-
-
 
 int main() { 
 
@@ -22,7 +22,7 @@ int main() {
 
 	auto end = std::chrono::high_resolution_clock::now();
 
-	std::cout << "Time elapsed : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << std::endl;
+	std::cout << "Time elapsed : " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "us" << std::endl;
 	
 	return 0;
 }
