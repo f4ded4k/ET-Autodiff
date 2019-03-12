@@ -29,6 +29,11 @@ namespace Num
 	public:
 		constexpr Scaler(double value = 0.0) : value_(value) {}
 
+		constexpr Scaler<double> Inverse() const
+		{
+			return Scaler<double>(1.0 / value_);
+		}
+
 		constexpr double GetValue() const 
 		{ 
 			return value_; 
@@ -91,6 +96,12 @@ namespace Num
 	constexpr Scaler<T> tan(Scaler<T> const& first) 
 	{
 		return Scaler<T>(std::tan(first.GetValue()));
+	}
+
+	template <typename T>
+	constexpr Scaler<T> sec(Scaler<T> const& first)
+	{
+		return Scaler<T>(1.0 / std::cos(first.GetValue()));
 	}
 
 	template <typename T>

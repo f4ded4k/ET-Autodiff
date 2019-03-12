@@ -32,8 +32,5 @@
     <ClInclude Include="tensor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="et_autodiff1.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

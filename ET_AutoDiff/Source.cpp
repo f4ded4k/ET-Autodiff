@@ -1,21 +1,22 @@
 #include <iostream>
 #include <chrono>
 #include "et_autodiff.h"
-#include "tensor.h"
 
 
 
-double Do() {
+double Do() 
+{
+	Et::ConstantExpr c1 = Et::Double(5.0), c2 = Et::Double(3.4);
+	Et::VariableExpr v1 = Et::Double(5.0);
+	Et::PlaceholderExpr<Et::Double> p1;
+	p1.FeedValue(3.4);
 
-	Et::ConstantExpr x = Et::Double(5.0), y = Et::Double(3.4), z = Et::Double(1.2);
-	
-	auto b = (x - y) + (x * y) + (x / z) + -x + sin(cos(y) + tan(log(z))); // 17.06
-
-	return b();
+	auto b = c1 + sin(v1 - p1);
+	return Et::Evaluate(b);
 }
 
-int main() { 
-
+int main() 
+{ 
 	auto begin = std::chrono::high_resolution_clock::now();
 	
 	std::cout << Do() << std::endl;
