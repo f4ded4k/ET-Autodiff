@@ -9,18 +9,25 @@ namespace Et {
 
 	using Double = Num::Scaler<double>;
 
+	template <typename T1, typename T2>
+	constexpr auto PlFeed(T1&& first, T2&& second)
+	{
+		return std::make_pair(&first, second);
+	}
+
 	namespace details
 	{
 		class TerminalExpr {};
 		class BinaryExpr {};
 		class UnaryExpr {};
+		class TrainableExpr {};
 	}
 
 	template <typename D>
 	class Expr
 	{
 	public:
-		using Derived_t = D;
+		using Derived_t = std::decay<D>;
 
 	public:
 		constexpr D const& GetSelf() const
@@ -60,7 +67,7 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t const& Eval(T& tuple) const
 		{
-			std::get<I>(tuple).SetAll(this);
+			std::get<I>(tuple).SetLocalGrads(this);
 			return _value;
 		}
 	};
@@ -87,7 +94,7 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t const& Eval(T& tuple) const
 		{
-			std::get<I>(tuple).SetAll(this);
+			std::get<I>(tuple).SetLocalGrads(this);
 			return _value;
 		}
 
@@ -98,16 +105,17 @@ namespace Et {
 	};
 
 	template <typename V>
-	class VariableExpr : public Expr<VariableExpr<V>>, private details::TerminalExpr
+	class VariableExpr : public Expr<VariableExpr<V>>, private details::TerminalExpr, private details::TrainableExpr
 	{
 	public:
 		using Value_t = std::decay_t<V>;
 
 	private:
 		V _value;
-		mutable V _cache;
 
 	public:
+		mutable V _cache;
+
 		constexpr VariableExpr(Num::Tensor<V> const& value) : _value(value.GetSelf()) {}
 
 		constexpr Value_t const& operator()() const
@@ -118,8 +126,19 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t const& Eval(T& tuple) const
 		{
-			std::get<I>(tuple).SetAll(this);
+			std::get<I>(tuple).SetLocalGrads(this);
 			return _value;
+		}
+
+		constexpr void SetCache(V const& delta) const
+		{
+			_cache = delta;
+		}
+
+		constexpr void SetValueAndResetCache(double learning_rate)
+		{
+			_value -= learning_rate * _cache;
+			_cache = 0.0;
 		}
 	};
 
@@ -153,7 +172,7 @@ namespace Et {
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
-			std::get<I>(tuple).SetAll(this, Double(1.0), Double(1.0));
+			std::get<I>(tuple).SetLocalGrads(this, Double(1.0), Double(1.0));
 			return first_value + second_value;
 		}
 	};
@@ -183,12 +202,12 @@ namespace Et {
 			return _first_expr() * _second_expr();
 		}
 
-		template <int I, typename T> const
-		constexpr Value_t Eval(T& tuple)
+		template <int I, typename T>
+		constexpr Value_t Eval(T& tuple) const
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
-			std::get<I>(tuple).SetAll(this, second_value, first_value);
+			std::get<I>(tuple).SetLocalGrads(this, second_value, first_value);
 			return first_value * second_value;
 		}
 	};
@@ -223,7 +242,7 @@ namespace Et {
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
-			std::get<I>(tuple).SetAll(this, Double(1.0), Double(-1.0));
+			std::get<I>(tuple).SetLocalGrads(this, Double(1.0), Double(-1.0));
 			return first_value - second_value;
 		}
 	};
@@ -259,7 +278,7 @@ namespace Et {
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			auto second_value_inverse = second_value.Inverse();
-			std::get<I>(tuple).SetAll(this, second_value_inverse, -first_value * second_value_inverse * second_value_inverse);
+			std::get<I>(tuple).SetLocalGrads(this, second_value_inverse, -first_value * second_value_inverse * second_value_inverse);
 			return first_value / second_value;
 		}
 	};
@@ -295,7 +314,7 @@ namespace Et {
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			Value_t value = Num::pow(first_value, second_value);
-			std::get<I>(tuple).SetAll(this, second_value * value * second_value.Inverse(), value * Num::log(first_value));
+			std::get<I>(tuple).SetLocalGrads(this, second_value * value * first_value.Inverse(), value * Num::log(first_value));
 			return value;
 		}
 	};
@@ -325,7 +344,7 @@ namespace Et {
 		constexpr Value_t Eval(T& tuple) const
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			std::get<I>(tuple).SetAll(this, Double(-1.0));
+			std::get<I>(tuple).SetLocalGrads(this, Double(-1.0));
 			return -first_value;
 		}
 	};
@@ -355,7 +374,7 @@ namespace Et {
 		constexpr Value_t Eval(T& tuple) const
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			std::get<I>(tuple).SetAll(this, first_value.Inverse());
+			std::get<I>(tuple).SetLocalGrads(this, first_value.Inverse());
 			return Num::log(first_value);
 		}
 	};
@@ -385,7 +404,7 @@ namespace Et {
 		constexpr Value_t Eval(T& tuple) const
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			std::get<I>(tuple).SetAll(this, Num::cos(first_value));
+			std::get<I>(tuple).SetLocalGrads(this, Num::cos(first_value));
 			return Num::sin(first_value);
 		}
 	};
@@ -415,7 +434,7 @@ namespace Et {
 		constexpr Value_t Eval(T& tuple) const
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			std::get<I>(tuple).SetAll(this, -Num::sin(first_value));
+			std::get<I>(tuple).SetLocalGrads(this, -Num::sin(first_value));
 			return Num::cos(first_value);
 		}
 	};
@@ -446,7 +465,7 @@ namespace Et {
 		{
 			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			auto sec_value = Num::sec(first_value);
-			std::get<I>(tuple).SetAll(this, sec_value * sec_value);
+			std::get<I>(tuple).SetLocalGrads(this, sec_value * sec_value);
 			return Num::tan(first_value);
 		}
 	};
@@ -515,26 +534,35 @@ namespace Et {
 	class Node;
 
 	template <typename E>
-	class Node<E> 
+	class Node<E> : details::TerminalExpr
 	{
 	public:
 		using Expr_t = E;
 
 	private:
 		E const* _expr;
-		typename E::Value_t _grediant;
 
 	public:
+		typename E::Value_t _grediant;
+
 		constexpr Node() : _grediant(0.0), _expr(nullptr) {}
 
-		constexpr void SetAll(E const* const expr)
+		constexpr void SetLocalGrads(E const* const expr)
 		{
 			_expr = expr;
+		}
+
+		constexpr void SetVariableCache() const 
+		{
+			if constexpr (std::is_base_of_v<details::TrainableExpr, Expr_t>)
+			{
+				_expr->_cache += _grediant;
+			}
 		}
 	};
 
 	template <typename E, int I>
-	class Node<E, I> 
+	class Node<E, I> : details::UnaryExpr
 	{
 	public:
 		using Expr_t = E;
@@ -547,22 +575,28 @@ namespace Et {
 		
 		constexpr Node() : _grediant(0.0), _first_local_grad(0.0), _expr(nullptr) {}
 
-		constexpr void SetAll(E const* const expr, typename E::FirstLocalGrad_t first_local_grad)
+		constexpr void SetLocalGrads(E const* const expr, typename E::FirstLocalGrad_t first_local_grad)
 		{
 			_expr = expr;
 			_first_local_grad = first_local_grad;
 		}
+
+		template <typename T>
+		constexpr void SetGrads(T& tuple) const
+		{
+			std::get<I>(tuple)._grediant += _grediant * _first_local_grad;
+		}
 	};
 
 	template <typename E, int I1, int I2>
-	class Node<E, I1, I2> 
+	class Node<E, I1, I2> : details::BinaryExpr
 	{
 	public:
 		using Expr_t = E;
 		constexpr static int Child1_v = I1;
 		constexpr static int Child2_v = I2;
 
-	public:
+	public: 
 		E const* _expr;
 		typename E::Value_t _grediant;
 		typename E::FirstLocalGrad_t _first_local_grad;
@@ -570,11 +604,18 @@ namespace Et {
 
 		constexpr Node() : _grediant(0.0), _first_local_grad(0.0), _second_local_grad(0.0), _expr(nullptr) {}
 
-		constexpr void SetAll(E const* const expr, typename E::FirstLocalGrad_t first_local_grad, typename E::SecondLocalGrad_t second_local_grad)
+		constexpr void SetLocalGrads(E const* const expr, typename E::FirstLocalGrad_t first_local_grad, typename E::SecondLocalGrad_t second_local_grad)
 		{
 			_expr = expr;
 			_first_local_grad = first_local_grad;
 			_second_local_grad = second_local_grad;
+		}
+
+		template <typename T>
+		constexpr void SetGrads(T& tuple) const
+		{
+			std::get<I1>(tuple)._grediant += _grediant * _first_local_grad;
+			std::get<I2>(tuple)._grediant += _grediant * _second_local_grad;
 		}
 	};
 
@@ -649,14 +690,50 @@ namespace Et {
 		using DfsFinalTuple_t = _Helper_DfsFinalTuple_t<E, DfsTupleSize_v<E>>;
 	}
 
-	template <typename E>
-	constexpr auto Evaluate(Expr<E>& expr) 
+	template <int I, typename T>
+	constexpr void BackProp(T& tuple)
 	{
+		if constexpr (I == std::tuple_size_v<T> -1)
+		{
+			std::get<I>(tuple)._grediant = (typename std::tuple_element_t<I, T>::Expr_t::Value_t)(1.0);
+		}
+		if constexpr (std::is_base_of_v<details::TerminalExpr, std::tuple_element_t<I, T>>)
+		{
+			std::get<I>(tuple).SetVariableCache();
+		}
+		else
+		{
+			std::get<I>(tuple).SetGrads(tuple);
+		}
+		if constexpr (I > 0)
+		{
+			BackProp<I - 1>(tuple);
+		}
+	}
+
+	template <typename... Args>
+	constexpr void FeedPlaceholders(Args&& ... args)
+	{
+		((args.first->FeedValue(args.second)), ...);
+	}
+
+	template <typename... Vars>
+	constexpr void ApplyGrediants(double learning_rate, Vars& ... vars)
+	{
+		((vars.SetValueAndResetCache(learning_rate)), ...);
+	}
+
+	template <typename E, typename... Args>
+	constexpr auto Evaluate(Expr<E>& expr, Args && ... args)
+	{
+		FeedPlaceholders(std::forward<Args...>(args...));
+
 		using Tuple_t = typename details::DfsFinalTuple_t<E>;
 		constexpr int TupleSize_v = details::DfsTupleSize_v<E>;
 
 		Tuple_t tuple;
 		auto result = expr.Eval<TupleSize_v - 1>(tuple);
+		BackProp<TupleSize_v - 1>(tuple);
 
 		return result;
 	}

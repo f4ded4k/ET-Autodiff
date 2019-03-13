@@ -4,22 +4,32 @@
 
 
 
-double Do() 
+void Test() 
 {
-	Et::ConstantExpr c1 = Et::Double(5.0), c2 = Et::Double(3.4);
-	Et::VariableExpr v1 = Et::Double(5.0);
-	Et::PlaceholderExpr<Et::Double> p1;
-	p1.FeedValue(3.4);
+	Et::ConstantExpr C1 = Et::Double(4), C2 = Et::Double(2);
+	Et::VariableExpr X1 = Et::Double(5.53), X2 = Et::Double(-3.12);
+	Et::PlaceholderExpr<Et::Double> P;
 
-	auto b = c1 + sin(v1 - p1);
-	return Et::Evaluate(b);
+	// min{f(x1,x2) = x1^2 + x2^2 + 4*x1 + 2*x2 - 6.3} = -11.3
+	auto Y = X1 * X1 + X2 * X2 + C1 * X1 + C2 * X2 + P;
+
+	int Iterations = 1000;
+	for (int i = 0; i < Iterations; i++)
+	{
+		std::cout << "Value at #" << i + 1 << " : " << Et::Evaluate(Y, Et::PlFeed(P, -6.3)) << std::endl;
+		Et::ApplyGrediants(0.01, X1, X2);
+	}
+
+	std::cout << std::endl;
+
+	std::cout << "Final Value :" << Y() << std::endl;
 }
 
 int main() 
-{ 
+{
 	auto begin = std::chrono::high_resolution_clock::now();
 	
-	std::cout << Do() << std::endl;
+	Test();
 
 	auto end = std::chrono::high_resolution_clock::now();
 

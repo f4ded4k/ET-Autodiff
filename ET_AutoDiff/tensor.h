@@ -42,6 +42,18 @@ namespace Num
 		{ 
 			return value_; 
 		}
+
+		constexpr Scaler<double>& operator+=(const Scaler<double>& other)
+		{
+			this->value_ += other.GetValue();
+			return *this;
+		}
+
+		constexpr Scaler<double>& operator-=(const Scaler<double>& other)
+		{
+			this->value_ -= other.GetValue();
+			return *this;
+		}
 	};
 
 	template <typename T>
