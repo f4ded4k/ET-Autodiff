@@ -34,6 +34,11 @@ namespace Et {
 		{
 			return static_cast<D const&>(*this);
 		}
+
+		constexpr D& GetSelf()
+		{
+			return static_cast<D&>(*this);
+		}
 		
 		constexpr decltype(auto) operator()() const
 		{
@@ -543,9 +548,9 @@ namespace Et {
 		E const* _expr;
 
 	public:
-		typename E::Value_t _grediant;
+		typename E::Value_t _gradient;
 
-		constexpr Node() : _grediant(0.0), _expr(nullptr) {}
+		constexpr Node() : _gradient(0.0), _expr(nullptr) {}
 
 		constexpr void SetLocalGrads(E const* const expr)
 		{
@@ -556,8 +561,13 @@ namespace Et {
 		{
 			if constexpr (std::is_base_of_v<details::TrainableExpr, Expr_t>)
 			{
-				_expr->_cache += _grediant;
+				_expr->_cache += _gradient;
 			}
+		}
+
+		constexpr void ResetGradient()
+		{
+			_gradient = static_cast<typename E::Value_t>(0.0);
 		}
 	};
 
@@ -570,10 +580,10 @@ namespace Et {
 		
 	public:
 		E const* _expr;
-		typename E::Value_t _grediant;
+		typename E::Value_t _gradient;
 		typename E::FirstLocalGrad_t _first_local_grad;
 		
-		constexpr Node() : _grediant(0.0), _first_local_grad(0.0), _expr(nullptr) {}
+		constexpr Node() : _gradient(0.0), _first_local_grad(0.0), _expr(nullptr) {}
 
 		constexpr void SetLocalGrads(E const* const expr, typename E::FirstLocalGrad_t first_local_grad)
 		{
@@ -584,7 +594,12 @@ namespace Et {
 		template <typename T>
 		constexpr void SetGrads(T& tuple) const
 		{
-			std::get<I>(tuple)._grediant += _grediant * _first_local_grad;
+			std::get<I>(tuple)._gradient += _gradient * _first_local_grad;
+		}
+
+		constexpr void ResetGradient()
+		{
+			_gradient = static_cast<typename E::Value_t>(0.0);
 		}
 	};
 
@@ -598,11 +613,11 @@ namespace Et {
 
 	public: 
 		E const* _expr;
-		typename E::Value_t _grediant;
+		typename E::Value_t _gradient;
 		typename E::FirstLocalGrad_t _first_local_grad;
 		typename E::SecondLocalGrad_t _second_local_grad;
 
-		constexpr Node() : _grediant(0.0), _first_local_grad(0.0), _second_local_grad(0.0), _expr(nullptr) {}
+		constexpr Node() : _gradient(0.0), _first_local_grad(0.0), _second_local_grad(0.0), _expr(nullptr) {}
 
 		constexpr void SetLocalGrads(E const* const expr, typename E::FirstLocalGrad_t first_local_grad, typename E::SecondLocalGrad_t second_local_grad)
 		{
@@ -614,8 +629,13 @@ namespace Et {
 		template <typename T>
 		constexpr void SetGrads(T& tuple) const
 		{
-			std::get<I1>(tuple)._grediant += _grediant * _first_local_grad;
-			std::get<I2>(tuple)._grediant += _grediant * _second_local_grad;
+			std::get<I1>(tuple)._gradient += _gradient * _first_local_grad;
+			std::get<I2>(tuple)._gradient += _gradient * _second_local_grad;
+		}
+
+		constexpr void ResetGradient()
+		{
+			_gradient = static_cast<typename E::Value_t>(0.0);
 		}
 	};
 
@@ -690,51 +710,84 @@ namespace Et {
 		using DfsFinalTuple_t = _Helper_DfsFinalTuple_t<E, DfsTupleSize_v<E>>;
 	}
 
-	template <int I, typename T>
-	constexpr void BackProp(T& tuple)
-	{
-		if constexpr (I == std::tuple_size_v<T> -1)
-		{
-			std::get<I>(tuple)._grediant = (typename std::tuple_element_t<I, T>::Expr_t::Value_t)(1.0);
-		}
-		if constexpr (std::is_base_of_v<details::TerminalExpr, std::tuple_element_t<I, T>>)
-		{
-			std::get<I>(tuple).SetVariableCache();
-		}
-		else
-		{
-			std::get<I>(tuple).SetGrads(tuple);
-		}
-		if constexpr (I > 0)
-		{
-			BackProp<I - 1>(tuple);
-		}
-	}
 
-	template <typename... Args>
-	constexpr void FeedPlaceholders(Args&& ... args)
+	template <typename E>
+	class GradientDescentOptimizer
 	{
-		((args.first->FeedValue(args.second)), ...);
-	}
-
-	template <typename... Vars>
-	constexpr void ApplyGrediants(double learning_rate, Vars& ... vars)
-	{
-		((vars.SetValueAndResetCache(learning_rate)), ...);
-	}
-
-	template <typename E, typename... Args>
-	constexpr auto Evaluate(Expr<E>& expr, Args && ... args)
-	{
-		FeedPlaceholders(std::forward<Args...>(args...));
-
+	private:
 		using Tuple_t = typename details::DfsFinalTuple_t<E>;
-		constexpr int TupleSize_v = details::DfsTupleSize_v<E>;
+		using Result_t = typename std::decay_t<decltype(std::declval<E>()())>;
 
-		Tuple_t tuple;
-		auto result = expr.Eval<TupleSize_v - 1>(tuple);
-		BackProp<TupleSize_v - 1>(tuple);
+		Tuple_t _tup;
+		E& _expr;
+		Result_t _result;
 
-		return result;
-	}
+		template <typename... Args>
+		constexpr void _Helper_FeedPlaceholders(Args&& ... args)
+		{
+			((args.first->FeedValue(args.second)), ...);
+		}
+
+		template <int I>
+		constexpr void _Helper_Backprop()
+		{
+			if constexpr (I == std::tuple_size_v<Tuple_t> -1)
+			{
+				std::get<I>(_tup)._gradient = (typename std::tuple_element_t<I, Tuple_t>::Expr_t::Value_t)(1.0);
+			}
+			if constexpr (std::is_base_of_v<details::TerminalExpr, std::tuple_element_t<I, Tuple_t>>)
+			{
+				std::get<I>(_tup).SetVariableCache();
+			}
+			else
+			{
+				std::get<I>(_tup).SetGrads(_tup);
+			}
+			std::get<I>(_tup).ResetGradient();
+			if constexpr (I > 0)
+			{
+				_Helper_Backprop<I - 1>();
+			}
+		}
+
+		template <typename... Vars>
+		constexpr void _Helper_ApplyGradients(double learning_rate, Vars& ... vars)
+		{
+			((vars.SetValueAndResetCache(learning_rate)), ...);
+		}
+
+	public:
+		constexpr GradientDescentOptimizer(Expr<E>& expr) : _expr(expr.GetSelf()) {}
+		
+		template <typename... Args>
+		constexpr GradientDescentOptimizer& FeedPlaceholders(Args&& ... args)
+		{
+			_Helper_FeedPlaceholders(std::forward<Args...>(args...));
+			return *this;
+		}
+
+		constexpr GradientDescentOptimizer& Eval()
+		{
+			_result = _expr.Eval<details::DfsTupleSize_v<E> - 1>(_tup);
+			return *this;
+		}
+
+		template <typename... Vars>
+		constexpr GradientDescentOptimizer& Backpass(double learning_rate, Vars& ... vars)
+		{
+			_Helper_Backprop<details::DfsTupleSize_v<E> - 1>();
+			_Helper_ApplyGradients(learning_rate, vars...);
+			return *this;
+		}
+
+		constexpr Result_t GetPreResult()
+		{
+			return _result;
+		}
+
+		constexpr Result_t GetPostResult()
+		{
+			return _expr();
+		}
+	};
 }
