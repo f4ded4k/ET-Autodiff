@@ -15,6 +15,7 @@ auto Y = X1 * X1 + X2 * X2 + C1 * X1 + C2 * X2 + P;
 ```
 
 ### Define the Cost function to minimize with respect to the Variables.
+### y = f(x1,x2) = x<sub>1</sub><sup>2</sup> + x<sub>2</sub><sup>2</sup> + 4x<sub>1</sub> + 2x<sub>2</sub> - 6.3
 
 ```cpp
 int Iterations = 1000;
