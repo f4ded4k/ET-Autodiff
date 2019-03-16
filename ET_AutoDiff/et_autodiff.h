@@ -15,6 +15,7 @@ namespace Et {
 		return std::make_pair(&first, second);
 	}
 
+	struct Expr {};
 	namespace details
 	{
 		class TerminalExpr {};
@@ -23,46 +24,21 @@ namespace Et {
 		class TrainableExpr {};
 	}
 
-	template <typename D>
-	class Expr
-	{
-	public:
-		using Derived_t = std::decay<D>;
-
-	public:
-		constexpr D const& GetSelf() const
-		{
-			return static_cast<D const&>(*this);
-		}
-
-		constexpr D& GetSelf()
-		{
-			return static_cast<D&>(*this);
-		}
-		
-		constexpr decltype(auto) operator()() const
-		{
-			return GetSelf()();
-		}
-
-		template <int I, typename T>
-		constexpr decltype(auto) Eval(T& tuple) const
-		{
-			return GetSelf().Eval<I>(tuple);
-		}
-	};
+	template<typename... T>
+	constexpr bool is_expr_v = std::conjunction_v<std::is_base_of<Expr, std::decay_t<T>>...>;
 
 	template <typename V>
-	class ConstantExpr : public Expr<ConstantExpr<V>>, private details::TerminalExpr
+	class ConstantExpr : public Expr, private details::TerminalExpr
 	{
 	public:
+		static_assert(Num::is_tensor_v<V>);
 		using Value_t = std::decay_t<V>;
 
 	private:
 		V const _value;
 
 	public:
-		constexpr ConstantExpr(Num::Tensor<V> const& value) : _value(value.GetSelf()) {}
+		constexpr ConstantExpr(V const& value) : _value(value) {}
 
 		constexpr Value_t const& operator()() const
 		{
@@ -77,8 +53,11 @@ namespace Et {
 		}
 	};
 
+	template<typename V>
+	ConstantExpr(V&&) -> ConstantExpr<V>;
+
 	template <typename V>
-	class PlaceholderExpr : public Expr<PlaceholderExpr<V>>, private details::TerminalExpr
+	class PlaceholderExpr : public Expr, private details::TerminalExpr
 	{
 	public:
 		using Value_t = std::decay_t<V>;
@@ -88,7 +67,7 @@ namespace Et {
 		V _value;
 
 	public:
-		constexpr PlaceholderExpr() : _value(0.0), _is_default(true) {}
+		constexpr PlaceholderExpr() : _is_default(true), _value(0.0) {}
 
 
 		constexpr Value_t const& operator()() const
@@ -110,7 +89,7 @@ namespace Et {
 	};
 
 	template <typename V>
-	class VariableExpr : public Expr<VariableExpr<V>>, private details::TerminalExpr, private details::TrainableExpr
+	class VariableExpr : public Expr, private details::TerminalExpr, private details::TrainableExpr
 	{
 	public:
 		using Value_t = std::decay_t<V>;
@@ -121,7 +100,7 @@ namespace Et {
 	public:
 		mutable V _cache;
 
-		constexpr VariableExpr(Num::Tensor<V> const& value) : _value(value.GetSelf()) {}
+		constexpr VariableExpr(V&& value) : _value(std::forward<V>(value)) {}
 
 		constexpr Value_t const& operator()() const
 		{
@@ -147,10 +126,14 @@ namespace Et {
 		}
 	};
 
+	template<typename V>
+	VariableExpr(V&&) -> VariableExpr<V>;
+
 	template <typename E1, typename E2>
-	class AddExpr : public Expr<AddExpr<E1, E2>>, private details::BinaryExpr
+	class AddExpr : public Expr, private details::BinaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1, E2>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using SecondExpr_t = std::decay_t<E2>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
@@ -160,12 +143,12 @@ namespace Et {
 		using Value_t = std::decay_t<decltype(std::declval<E1>()() + std::declval<E2>()())>;
 
 	private:
-		E1 const& _first_expr;
-		E2 const& _second_expr;
+		E1 _first_expr;
+		E2 _second_expr;
 
 	public:
-		constexpr AddExpr(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
-			: _first_expr(first_expr.GetSelf()), _second_expr(second_expr.GetSelf()) {}
+		constexpr AddExpr(E1&& first_expr, E2&& second_expr)
+			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -175,32 +158,36 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			SecondValue_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, Double(1.0), Double(1.0));
 			return first_value + second_value;
 		}
 	};
 
+	template<typename E1, typename E2>
+	AddExpr(E1&&, E2&&) -> AddExpr<E1, E2>;
+
 	template <typename E1, typename E2>
-	class MultiplyExpr : public Expr<MultiplyExpr<E1, E2>>, private details::BinaryExpr
+	class MultiplyExpr : public Expr, private details::BinaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1, E2>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using SecondExpr_t = std::decay_t<E2>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
 		using SecondValue_t = std::decay_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = SecondValue_t;
 		using SecondLocalGrad_t = FirstValue_t;
-		using Value_t = std::decay_t<decltype(std::declval<E1>()()* std::declval<E2>()())>;
+		using Value_t = std::decay_t<decltype(std::declval<FirstValue_t>() * std::declval<SecondValue_t>())>;
 
 	private:
-		E1 const& _first_expr;
-		E2 const& _second_expr;
+		E1 _first_expr;
+		E2 _second_expr;
 
 	public:
-		constexpr MultiplyExpr(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
-			: _first_expr(first_expr.GetSelf()), _second_expr(second_expr.GetSelf()) {}
+		constexpr MultiplyExpr(E1&& first_expr, E2&& second_expr)
+			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -210,17 +197,21 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			SecondValue_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, second_value, first_value);
 			return first_value * second_value;
 		}
 	};
 
+	template<typename E1, typename E2>
+	MultiplyExpr(E1&&, E2&&) -> MultiplyExpr<E1, E2>;
+
 	template <typename E1, typename E2>
-	class SubtractExpr : public Expr<SubtractExpr<E1, E2>>, private details::BinaryExpr
+	class SubtractExpr : public Expr, private details::BinaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1, E2>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using SecondExpr_t = std::decay_t<E2>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
@@ -230,12 +221,12 @@ namespace Et {
 		using Value_t = std::decay_t<decltype(std::declval<E1>()() - std::declval<E2>()())>;
 
 	private:
-		E1 const& _first_expr;
-		E2 const& _second_expr;
+		E1 _first_expr;
+		E2 _second_expr;
 
 	public:
-		constexpr SubtractExpr(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
-			: _first_expr(first_expr.GetSelf()), _second_expr(second_expr.GetSelf()) {}
+		constexpr SubtractExpr(E1&& first_expr, E2&& second_expr)
+			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -245,17 +236,21 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			SecondValue_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, Double(1.0), Double(-1.0));
 			return first_value - second_value;
 		}
 	};
 
+	template<typename E1, typename E2>
+	SubtractExpr(E1&&, E2&&) -> SubtractExpr<E1, E2>;
+
 	template <typename E1, typename E2>
-	class DivideExpr : public Expr<DivideExpr<E1, E2>>, private details::BinaryExpr
+	class DivideExpr : public Expr, private details::BinaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1, E2>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using SecondExpr_t = std::decay_t<E2>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
@@ -265,12 +260,12 @@ namespace Et {
 		using Value_t = std::decay_t<decltype(std::declval<E1>()() / std::declval<E2>()())>;
 
 	private:
-		E1 const& _first_expr;
-		E2 const& _second_expr;
+		E1 _first_expr;
+		E2 _second_expr;
 
 	public:
-		constexpr DivideExpr(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
-			: _first_expr(first_expr.GetSelf()), _second_expr(second_expr.GetSelf()) {}
+		constexpr DivideExpr(E1&& first_expr, E2&& second_expr)
+			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -280,18 +275,22 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			SecondValue_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			auto second_value_inverse = second_value.Inverse();
 			std::get<I>(tuple).SetLocalGrads(this, second_value_inverse, -first_value * second_value_inverse * second_value_inverse);
 			return first_value / second_value;
 		}
 	};
 
+	template<typename E1, typename E2>
+	DivideExpr(E1&&, E2&&) -> DivideExpr<E1, E2>;
+
 	template <typename E1, typename E2>
-	class PowerExpr : public Expr<PowerExpr<E1, E2>>, private details::BinaryExpr
+	class PowerExpr : public Expr, private details::BinaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1, E2>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using SecondExpr_t = std::decay_t<E2>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
@@ -301,12 +300,12 @@ namespace Et {
 		using Value_t = std::decay_t<decltype(Num::pow(std::declval<E1>()(), std::declval<E2>()()))>;
 
 	private:
-		E1 const& _first_expr;
-		E2 const& _second_expr;
+		E1 _first_expr;
+		E2 _second_expr;
 
 	public:
-		constexpr PowerExpr(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
-			: _first_expr(first_expr.GetSelf()), _second_expr(second_expr.GetSelf()) {}
+		constexpr PowerExpr(E1&& first_expr, E2&& second_expr)
+			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -316,29 +315,33 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
-			SecondValue_t second_value = _second_expr.Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			SecondValue_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::Child2_v>(tuple);
 			Value_t value = Num::pow(first_value, second_value);
 			std::get<I>(tuple).SetLocalGrads(this, second_value * value * first_value.Inverse(), value * Num::log(first_value));
 			return value;
 		}
 	};
 
+	template<typename E1, typename E2>
+	PowerExpr(E1&&, E2&&) -> PowerExpr<E1, E2>;
+
 	template <typename E1>
-	class NegateExpr : public Expr<NegateExpr<E1>>, private details::UnaryExpr
+	class NegateExpr : public Expr, private details::UnaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using Value_t = std::decay_t<decltype(-std::declval<E1>()())>;
 
 	private:
-		E1 const& _first_expr;
+		E1 _first_expr;
 
 	public:
-		constexpr NegateExpr(Expr<E1> const& first_expr)
-			: _first_expr(first_expr.GetSelf()) {}
+		constexpr NegateExpr(E1&& first_expr)
+			: _first_expr(std::forward<E1>(first_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -348,27 +351,31 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, Double(-1.0));
 			return -first_value;
 		}
 	};
 
+	template<typename E1>
+	NegateExpr(E1&&) -> NegateExpr<E1>;
+
 	template <typename E1>
-	class LogExpr : public Expr<LogExpr<E1>>, private details::UnaryExpr
+	class LogExpr : public Expr, private details::UnaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using Value_t = std::decay_t<decltype(Num::log(std::declval<E1>()()))>;
 
 	private:
-		E1 const& _first_expr;
+		E1 _first_expr;
 
 	public:
-		constexpr LogExpr(Expr<E1> const& first_expr)
-			: _first_expr(first_expr.GetSelf()) {}
+		constexpr LogExpr(E1&& first_expr)
+			: _first_expr(std::forward<E1>(first_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -378,27 +385,31 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, first_value.Inverse());
 			return Num::log(first_value);
 		}
 	};
 
+	template<typename E1>
+	LogExpr(E1&&) -> LogExpr<E1>;
+
 	template <typename E1>
-	class SinExpr : public Expr<SinExpr<E1>>, private details::UnaryExpr
+	class SinExpr : public Expr, private details::UnaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using Value_t = std::decay_t<decltype(Num::sin(std::declval<E1>()()))>;
 
 	private:
-		E1 const& _first_expr;
+		E1 _first_expr;
 
 	public:
-		constexpr SinExpr(Expr<E1> const& first_expr)
-			: _first_expr(first_expr.GetSelf()) {}
+		constexpr SinExpr(E1&& first_expr)
+			: _first_expr(std::forward<E1>(first_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -408,27 +419,31 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, Num::cos(first_value));
 			return Num::sin(first_value);
 		}
 	};
 
+	template<typename E1>
+	SinExpr(E1&&) -> SinExpr<E1>;
+
 	template <typename E1>
-	class CosExpr : public Expr<CosExpr<E1>>, private details::UnaryExpr
+	class CosExpr : public Expr, private details::UnaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using Value_t = std::decay_t<decltype(Num::cos(std::declval<E1>()()))>;
 
 	private:
-		E1 const& _first_expr;
+		E1 _first_expr;
 
 	public:
-		constexpr CosExpr(Expr<E1> const& first_expr)
-			: _first_expr(first_expr.GetSelf()) {}
+		constexpr CosExpr(E1&& first_expr)
+			: _first_expr(std::forward<E1>(first_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -438,27 +453,31 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, -Num::sin(first_value));
 			return Num::cos(first_value);
 		}
 	};
 
+	template<typename E1>
+	CosExpr(E1&&) -> CosExpr<E1>;
+
 	template <typename E1>
-	class TanExpr : public Expr<TanExpr<E1>>, private details::UnaryExpr
+	class TanExpr : public Expr, private details::UnaryExpr
 	{
 	public:
+		static_assert(is_expr_v<E1>);
 		using FirstExpr_t = std::decay_t<E1>;
 		using FirstValue_t = std::decay_t<decltype(std::declval<E1>()())>;
 		using FirstLocalGrad_t = FirstValue_t;
 		using Value_t = std::decay_t<decltype(Num::tan(std::declval<E1>()()))>;
 
 	private:
-		E1 const& _first_expr;
+		E1 _first_expr;
 
 	public:
-		constexpr TanExpr(Expr<E1> const& first_expr)
-			: _first_expr(first_expr.GetSelf()) {}
+		constexpr TanExpr(E1&& first_expr)
+			: _first_expr(std::forward<E1>(first_expr)) {}
 
 		constexpr Value_t operator()() const
 		{
@@ -468,71 +487,74 @@ namespace Et {
 		template <int I, typename T>
 		constexpr Value_t Eval(T& tuple) const
 		{
-			FirstValue_t first_value = _first_expr.Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
+			FirstValue_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::Child1_v>(tuple);
 			auto sec_value = Num::sec(first_value);
 			std::get<I>(tuple).SetLocalGrads(this, sec_value * sec_value);
 			return Num::tan(first_value);
 		}
 	};
 
-	template <typename E1, typename E2>
-	constexpr AddExpr<E1, E2> operator+(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
+	template<typename E1>
+	TanExpr(E1&&) -> TanExpr<E1>;
+
+	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
+	constexpr AddExpr<E1, E2> operator+(E1&& first_expr, E2&& second_expr)
 	{
-		return AddExpr(first_expr, second_expr);
+		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
 	}
 
-	template <typename E1, typename E2>
-	constexpr MultiplyExpr<E1, E2> operator*(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
+	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
+	constexpr MultiplyExpr<E1, E2> operator*(E1&& first_expr, E2&& second_expr)
 	{
-		return MultiplyExpr(first_expr, second_expr);
+		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
 	}
 
-	template <typename E1, typename E2>
-	constexpr SubtractExpr<E1, E2> operator-(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
+	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
+	constexpr SubtractExpr<E1, E2> operator-(E1&& first_expr, E2&& second_expr)
 	{
-		return SubtractExpr(first_expr, second_expr);
+		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
 	}
 
-	template <typename E1, typename E2>
-	constexpr DivideExpr<E1, E2> operator/(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
+	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
+	constexpr DivideExpr<E1, E2> operator/(E1&& first_expr, E2&& second_expr)
 	{
-		return DivideExpr(first_expr, second_expr);
+		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
 	}
 
-	template <typename E1, typename E2>
-	constexpr PowerExpr<E1, E2> pow(Expr<E1> const& first_expr, Expr<E2> const& second_expr)
+	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
+	constexpr PowerExpr<E1, E2> pow(E1&& first_expr, E2&& second_expr)
 	{
-		return PowerExpr(first_expr, second_expr);
+		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
 	}
 
-	template <typename E1>
-	constexpr NegateExpr<E1> operator-(Expr<E1> const& first_expr)
+	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
+	constexpr NegateExpr<E1> operator-(E1&& first_expr)
 	{
-		return NegateExpr(first_expr);
+		return {std::forward<E1>(first_expr)};
 	}
 
-	template <typename E1>
-	constexpr LogExpr<E1> log(Expr<E1> const& first_expr)
+	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
+	constexpr LogExpr<E1> log(E1&& first_expr)
 	{
-		return LogExpr(first_expr);
+		return {std::forward<E1>(first_expr)};
 	}
 
-	template <typename E1>
-	constexpr SinExpr<E1> sin(Expr<E1> const& first_expr)
+	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
+	constexpr SinExpr<E1> sin(E1&& first_expr)
 	{
-		return SinExpr(first_expr);
+		return {std::forward<E1>(first_expr)};
 	}
 
-	template <typename E1>
-	constexpr CosExpr<E1> cos(Expr<E1> const& first_expr)
+	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
+	constexpr CosExpr<E1> cos(E1&& first_expr)
 	{
-		return CosExpr(first_expr);
+		return {std::forward<E1>(first_expr)};
 	}
 
-	template <typename E1>
-	constexpr TanExpr<E1> tan(Expr<E1> const& first_expr)
+	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
+	constexpr TanExpr<E1> tan(E1&& first_expr)
 	{
-		return TanExpr(first_expr);
+		return {std::forward<E1>(first_expr)};
 	}
 
 	template <typename E, int... Ints>
@@ -550,7 +572,7 @@ namespace Et {
 	public:
 		typename E::Value_t _gradient;
 
-		constexpr Node() : _gradient(0.0), _expr(nullptr) {}
+		constexpr Node() : _expr(nullptr), _gradient(0.0) {}
 
 		constexpr void SetLocalGrads(E const* const expr)
 		{
@@ -583,7 +605,7 @@ namespace Et {
 		typename E::Value_t _gradient;
 		typename E::FirstLocalGrad_t _first_local_grad;
 		
-		constexpr Node() : _gradient(0.0), _first_local_grad(0.0), _expr(nullptr) {}
+		constexpr Node() : _expr(nullptr), _gradient(0.0), _first_local_grad(0.0) {}
 
 		constexpr void SetLocalGrads(E const* const expr, typename E::FirstLocalGrad_t first_local_grad)
 		{
@@ -611,13 +633,13 @@ namespace Et {
 		constexpr static int Child1_v = I1;
 		constexpr static int Child2_v = I2;
 
-	public: 
+	public:
 		E const* _expr;
 		typename E::Value_t _gradient;
 		typename E::FirstLocalGrad_t _first_local_grad;
 		typename E::SecondLocalGrad_t _second_local_grad;
 
-		constexpr Node() : _gradient(0.0), _first_local_grad(0.0), _second_local_grad(0.0), _expr(nullptr) {}
+		constexpr Node() : _expr(nullptr), _gradient(0.0), _first_local_grad(0.0), _second_local_grad(0.0) {}
 
 		constexpr void SetLocalGrads(E const* const expr, typename E::FirstLocalGrad_t first_local_grad, typename E::SecondLocalGrad_t second_local_grad)
 		{
@@ -715,6 +737,7 @@ namespace Et {
 	class GradientDescentOptimizer
 	{
 	private:
+		static_assert(is_expr_v<E>);
 		using Tuple_t = typename details::DfsFinalTuple_t<E>;
 		using Result_t = typename std::decay_t<decltype(std::declval<E>()())>;
 
@@ -757,8 +780,8 @@ namespace Et {
 		}
 
 	public:
-		constexpr GradientDescentOptimizer(Expr<E>& expr) : _expr(expr.GetSelf()) {}
 		
+		constexpr GradientDescentOptimizer(E& expr) : _expr(expr) {}
 		template <typename... Args>
 		constexpr GradientDescentOptimizer& FeedPlaceholders(Args&& ... args)
 		{
@@ -768,7 +791,7 @@ namespace Et {
 
 		constexpr GradientDescentOptimizer& Eval()
 		{
-			_result = _expr.Eval<details::DfsTupleSize_v<E> - 1>(_tup);
+			_result = _expr.template Eval<details::DfsTupleSize_v<E> - 1>(_tup);
 			return *this;
 		}
 

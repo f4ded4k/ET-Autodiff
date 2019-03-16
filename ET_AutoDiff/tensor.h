@@ -1,26 +1,21 @@
 #pragma once
 
 #include <cmath>
+#include <type_traits>
 
-namespace Num 
+namespace Num
 {
 
-	template <typename D>
-	class Tensor 
-	{
+	struct Tensor {};
 
-	public:
-		constexpr D const& GetSelf() const 
-		{
-			return static_cast<D const&>(*this);
-		}
-	};
+	template<typename T>
+	constexpr bool is_tensor_v = std::is_base_of_v<Tensor, T>;
 
 	template <typename>
 	class Scaler;
 
 	template<>
-	class Scaler<double> : public Tensor<Scaler<double>> 
+	class Scaler<double> : public Tensor
 	{
 
 	private:
