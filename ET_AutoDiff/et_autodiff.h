@@ -179,7 +179,7 @@ namespace Et {
 		using SecondValue_t = std::decay_t<decltype(std::declval<E2>()())>;
 		using FirstLocalGrad_t = SecondValue_t;
 		using SecondLocalGrad_t = FirstValue_t;
-		using Value_t = std::decay_t<decltype(std::declval<FirstValue_t>() * std::declval<SecondValue_t>())>;
+		using Value_t = std::decay_t<decltype(std::declval<E1>()() * std::declval<E2>()())>;
 
 	private:
 		E1 _first_expr;
