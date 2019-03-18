@@ -7,7 +7,7 @@
 
 namespace Et {
 
-	using Double = Num::Scaler<double>;
+	using ScalarD = Num::Scaler<double>;
 
 	template <typename T1, typename T2>
 	constexpr auto PlFeed(T1& first, T2 const& second)
@@ -25,7 +25,7 @@ namespace Et {
 	template<typename... T>
 	constexpr bool is_expr_v = std::conjunction_v<std::is_base_of<Expr, std::decay_t<T>>...>;
 
-	template <typename V = Double>
+	template <typename V>
 	class ConstantExpr : public Expr, private TerminalExpr
 	{
 	public:
@@ -38,20 +38,23 @@ namespace Et {
 	public:
 		constexpr ConstantExpr(V const& value) : _value(value) {}
 
-		constexpr auto& operator()() const
+		constexpr auto operator()() const -> auto&
 		{
 			return _value;
 		}
 
 		template <int I, typename T>
-		constexpr auto& Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto&
 		{
 			std::get<I>(tuple).SetLocalGrads(this);
 			return _value;
 		}
 	};
 
-	template <typename V = Double>
+	ConstantExpr(int const&)->ConstantExpr<ScalarD>;
+	ConstantExpr(double const&)->ConstantExpr<ScalarD>;
+
+	template <typename V>
 	class PlaceholderExpr : public Expr, private TerminalExpr
 	{
 	public:
@@ -63,27 +66,29 @@ namespace Et {
 		V _value;
 
 	public:
-		constexpr PlaceholderExpr() : _is_default(true), _value(Num::default_v<value_t>) {}
+		constexpr PlaceholderExpr() : _is_default{ true }, _value{ Num::default_v<value_t> } {}
 
-		constexpr auto& operator()() const
+		constexpr auto operator()() const -> auto&
 		{
 			return _value;
 		}
 
 		template <int I, typename T>
-		constexpr auto& Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto&
 		{
 			std::get<I>(tuple).SetLocalGrads(this);
 			return _value;
 		}
 
-		constexpr void FeedValue(value_t const& value)
+		constexpr auto FeedValue(value_t const& value) -> void
 		{
 			_value = value;
 		}
 	};
 
-	template <typename V = Double>
+	PlaceholderExpr()->PlaceholderExpr<ScalarD>;
+
+	template <typename V>
 	class VariableExpr : public Expr, private TerminalExpr, private TrainableExpr
 	{
 	public:
@@ -96,31 +101,34 @@ namespace Et {
 	public:
 		mutable V _cache;
 
-		constexpr VariableExpr(V&& value) : _value(std::forward<V>(value)) {}
+		constexpr VariableExpr(V const& value) : _value{ value } {}
 
-		constexpr auto& operator()() const
+		constexpr auto operator()() const -> auto&
 		{
 			return _value;
 		}
 
 		template <int I, typename T>
-		constexpr auto& Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto&
 		{
 			std::get<I>(tuple).SetLocalGrads(this);
 			return _value;
 		}
 
-		constexpr void SetCache(value_t const& delta) const
+		constexpr auto SetCache(value_t const& delta) const -> void
 		{
 			_cache = delta;
 		}
 
-		constexpr void SetValueAndResetCache(double learning_rate)
+		constexpr auto SetValueAndResetCache(double learning_rate) -> void
 		{
 			_value -= learning_rate * _cache;
 			_cache = 0.0;
 		}
 	};
+
+	VariableExpr(int const&)->VariableExpr<ScalarD>;
+	VariableExpr(double const&)->VariableExpr<ScalarD>;
 
 	template <typename E1, typename E2>
 	class AddExpr : public Expr, private BinaryExpr
@@ -141,15 +149,15 @@ namespace Et {
 
 	public:
 		constexpr AddExpr(E1&& first_expr, E2&& second_expr)
-			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) }, _second_expr{ std::forward<E2>(second_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return _first_expr() + _second_expr();
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			second_value_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::child_two_v>(tuple);
@@ -159,7 +167,7 @@ namespace Et {
 	};
 
 	template<typename E1, typename E2>
-	AddExpr(E1&&, E2&&) -> AddExpr<E1, E2>;
+	AddExpr(E1&&, E2&&)->AddExpr<E1, E2>;
 
 	template <typename E1, typename E2>
 	class MultiplyExpr : public Expr, private BinaryExpr
@@ -180,15 +188,15 @@ namespace Et {
 
 	public:
 		constexpr MultiplyExpr(E1&& first_expr, E2&& second_expr)
-			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) }, _second_expr{ std::forward<E2>(second_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return _first_expr() * _second_expr();
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			second_value_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::child_two_v>(tuple);
@@ -198,7 +206,7 @@ namespace Et {
 	};
 
 	template<typename E1, typename E2>
-	MultiplyExpr(E1&&, E2&&) -> MultiplyExpr<E1, E2>;
+	MultiplyExpr(E1&&, E2&&)->MultiplyExpr<E1, E2>;
 
 	template <typename E1, typename E2>
 	class SubtractExpr : public Expr, private BinaryExpr
@@ -219,15 +227,15 @@ namespace Et {
 
 	public:
 		constexpr SubtractExpr(E1&& first_expr, E2&& second_expr)
-			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) }, _second_expr{ std::forward<E2>(second_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return _first_expr() - _second_expr();
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const ->auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			second_value_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::child_two_v>(tuple);
@@ -237,7 +245,7 @@ namespace Et {
 	};
 
 	template<typename E1, typename E2>
-	SubtractExpr(E1&&, E2&&) -> SubtractExpr<E1, E2>;
+	SubtractExpr(E1&&, E2&&)->SubtractExpr<E1, E2>;
 
 	template <typename E1, typename E2>
 	class DivideExpr : public Expr, private BinaryExpr
@@ -258,15 +266,15 @@ namespace Et {
 
 	public:
 		constexpr DivideExpr(E1&& first_expr, E2&& second_expr)
-			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) }, _second_expr{ std::forward<E2>(second_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return _first_expr() / _second_expr();
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			second_value_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::child_two_v>(tuple);
@@ -277,7 +285,7 @@ namespace Et {
 	};
 
 	template<typename E1, typename E2>
-	DivideExpr(E1&&, E2&&) -> DivideExpr<E1, E2>;
+	DivideExpr(E1&&, E2&&)->DivideExpr<E1, E2>;
 
 	template <typename E1, typename E2>
 	class PowerExpr : public Expr, private BinaryExpr
@@ -298,15 +306,15 @@ namespace Et {
 
 	public:
 		constexpr PowerExpr(E1&& first_expr, E2&& second_expr)
-			: _first_expr(std::forward<E1>(first_expr)), _second_expr(std::forward<E2>(second_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) }, _second_expr{ std::forward<E2>(second_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return Num::pow(_first_expr(), _second_expr());
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			second_value_t second_value = _second_expr.template Eval<std::tuple_element_t<I, T>::child_two_v>(tuple);
@@ -317,7 +325,7 @@ namespace Et {
 	};
 
 	template<typename E1, typename E2>
-	PowerExpr(E1&&, E2&&) -> PowerExpr<E1, E2>;
+	PowerExpr(E1&&, E2&&)->PowerExpr<E1, E2>;
 
 	template <typename E1>
 	class NegateExpr : public Expr, private UnaryExpr
@@ -334,15 +342,15 @@ namespace Et {
 
 	public:
 		constexpr NegateExpr(E1&& first_expr)
-			: _first_expr(std::forward<E1>(first_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return -_first_expr();
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, first_local_grad_t(-1.0));
@@ -351,7 +359,7 @@ namespace Et {
 	};
 
 	template<typename E1>
-	NegateExpr(E1&&) -> NegateExpr<E1>;
+	NegateExpr(E1&&)->NegateExpr<E1>;
 
 	template <typename E1>
 	class LogExpr : public Expr, private UnaryExpr
@@ -368,15 +376,15 @@ namespace Et {
 
 	public:
 		constexpr LogExpr(E1&& first_expr)
-			: _first_expr(std::forward<E1>(first_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return Num::log(_first_expr());
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, first_value.Inverse());
@@ -385,7 +393,7 @@ namespace Et {
 	};
 
 	template<typename E1>
-	LogExpr(E1&&) -> LogExpr<E1>;
+	LogExpr(E1&&)->LogExpr<E1>;
 
 	template <typename E1>
 	class SinExpr : public Expr, private UnaryExpr
@@ -402,15 +410,15 @@ namespace Et {
 
 	public:
 		constexpr SinExpr(E1&& first_expr)
-			: _first_expr(std::forward<E1>(first_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return Num::sin(_first_expr());
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, Num::cos(first_value));
@@ -419,7 +427,7 @@ namespace Et {
 	};
 
 	template<typename E1>
-	SinExpr(E1&&) -> SinExpr<E1>;
+	SinExpr(E1&&)->SinExpr<E1>;
 
 	template <typename E1>
 	class CosExpr : public Expr, private UnaryExpr
@@ -436,15 +444,15 @@ namespace Et {
 
 	public:
 		constexpr CosExpr(E1&& first_expr)
-			: _first_expr(std::forward<E1>(first_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return Num::cos(_first_expr());
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			std::get<I>(tuple).SetLocalGrads(this, -Num::sin(first_value));
@@ -453,7 +461,7 @@ namespace Et {
 	};
 
 	template<typename E1>
-	CosExpr(E1&&) -> CosExpr<E1>;
+	CosExpr(E1&&)->CosExpr<E1>;
 
 	template <typename E1>
 	class TanExpr : public Expr, private UnaryExpr
@@ -470,15 +478,15 @@ namespace Et {
 
 	public:
 		constexpr TanExpr(E1&& first_expr)
-			: _first_expr(std::forward<E1>(first_expr)) {}
+			: _first_expr{ std::forward<E1>(first_expr) } {}
 
-		constexpr auto operator()() const
+		constexpr auto operator()() const -> auto
 		{
 			return Num::tan(_first_expr());
 		}
 
 		template <int I, typename T>
-		constexpr auto Eval(T& tuple) const
+		constexpr auto Eval(T& tuple) const -> auto
 		{
 			first_value_t first_value = _first_expr.template Eval<std::tuple_element_t<I, T>::child_one_v>(tuple);
 			auto sec_value = Num::sec(first_value);
@@ -488,66 +496,66 @@ namespace Et {
 	};
 
 	template<typename E1>
-	TanExpr(E1&&) -> TanExpr<E1>;
+	TanExpr(E1&&)->TanExpr<E1>;
 
 	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
-	constexpr AddExpr<E1, E2> operator+(E1&& first_expr, E2&& second_expr)
+	constexpr auto operator+(E1&& first_expr, E2&& second_expr) -> AddExpr<E1, E2>
 	{
-		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
-	}
-
-	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
-	constexpr MultiplyExpr<E1, E2> operator*(E1&& first_expr, E2&& second_expr)
-	{
-		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
+		return { std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
 	}
 
 	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
-	constexpr SubtractExpr<E1, E2> operator-(E1&& first_expr, E2&& second_expr)
+	constexpr auto operator*(E1&& first_expr, E2&& second_expr) -> MultiplyExpr<E1, E2>
 	{
-		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
+		return { std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
 	}
 
 	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
-	constexpr DivideExpr<E1, E2> operator/(E1&& first_expr, E2&& second_expr)
+	constexpr auto operator-(E1&& first_expr, E2&& second_expr) -> SubtractExpr<E1, E2>
 	{
-		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
+		return { std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
 	}
 
 	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
-	constexpr PowerExpr<E1, E2> pow(E1&& first_expr, E2&& second_expr)
+	constexpr auto operator/(E1&& first_expr, E2&& second_expr) -> DivideExpr<E1, E2>
 	{
-		return {std::forward<E1>(first_expr), std::forward<E2>(second_expr)};
+		return { std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
+	}
+
+	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
+	constexpr auto pow(E1&& first_expr, E2&& second_expr) -> PowerExpr<E1, E2>
+	{
+		return { std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
 	}
 
 	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
-	constexpr NegateExpr<E1> operator-(E1&& first_expr)
+	constexpr auto operator-(E1&& first_expr) -> NegateExpr<E1>
 	{
-		return {std::forward<E1>(first_expr)};
+		return { std::forward<E1>(first_expr) };
 	}
 
 	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
-	constexpr LogExpr<E1> log(E1&& first_expr)
+	constexpr auto log(E1&& first_expr) -> LogExpr<E1>
 	{
-		return {std::forward<E1>(first_expr)};
+		return { std::forward<E1>(first_expr) };
 	}
 
 	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
-	constexpr SinExpr<E1> sin(E1&& first_expr)
+	constexpr auto sin(E1&& first_expr) -> SinExpr<E1>
 	{
-		return {std::forward<E1>(first_expr)};
+		return { std::forward<E1>(first_expr) };
 	}
 
 	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
-	constexpr CosExpr<E1> cos(E1&& first_expr)
+	constexpr auto cos(E1&& first_expr) -> CosExpr<E1>
 	{
-		return {std::forward<E1>(first_expr)};
+		return { std::forward<E1>(first_expr) };
 	}
 
 	template <typename E1, typename = std::enable_if_t<is_expr_v<E1>>>
-	constexpr TanExpr<E1> tan(E1&& first_expr)
+	constexpr auto tan(E1&& first_expr) -> TanExpr<E1>
 	{
-		return {std::forward<E1>(first_expr)};
+		return { std::forward<E1>(first_expr) };
 	}
 
 	template <typename E, int... Ints>

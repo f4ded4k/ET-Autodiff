@@ -8,12 +8,12 @@
 
 void Test() 
 {
-	Et::ConstantExpr<> C1{ 4 }, C2{ 2 };
-	Et::VariableExpr<> X1{ 5.53 }, X2{ -3.12 };
-	Et::PlaceholderExpr<> P;
+	Et::ConstantExpr C1{ 4 }, C2{ 2 };
+	Et::VariableExpr X1{ 5.53 }, X2{ -3.12 };
+	Et::PlaceholderExpr P;
 
 	auto Y = X1 * X1 + X2 * X2 + C1 * X1 + C2 * X2 + P;
-
+	
 	Et::GradientDescentOptimizer Optimizer{ Y };
 
 	int Iterations = 1000;
