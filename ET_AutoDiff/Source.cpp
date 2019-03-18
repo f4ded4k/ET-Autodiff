@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <chrono>
 #include "et_autodiff.h"
@@ -6,9 +8,9 @@
 
 void Test() 
 {
-	Et::ConstantExpr C1{ Et::Double(4) }, C2{ Et::Double(2) };
-	Et::VariableExpr X1{ Et::Double(5.53) }, X2{ Et::Double(-3.12) };
-	Et::PlaceholderExpr<Et::Double> P;
+	Et::ConstantExpr<> C1{ 4 }, C2{ 2 };
+	Et::VariableExpr<> X1{ 5.53 }, X2{ -3.12 };
+	Et::PlaceholderExpr<> P;
 
 	auto Y = X1 * X1 + X2 * X2 + C1 * X1 + C2 * X2 + P;
 
