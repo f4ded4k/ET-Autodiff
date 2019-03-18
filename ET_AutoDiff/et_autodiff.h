@@ -2,6 +2,7 @@
 
 #include <type_traits>
 #include <tuple>
+#include <initializer_list>
 #include <cmath>
 #include "tensor.h"
 
@@ -53,6 +54,7 @@ namespace Et {
 
 	ConstantExpr(int const&)->ConstantExpr<ScalarD>;
 	ConstantExpr(double const&)->ConstantExpr<ScalarD>;
+	ConstantExpr(float const&)->ConstantExpr<ScalarD>;
 
 	template <typename V>
 	class PlaceholderExpr : public Expr, private TerminalExpr
@@ -99,8 +101,6 @@ namespace Et {
 		V _value;
 
 	public:
-		mutable V _cache;
-
 		constexpr VariableExpr(V const& value) : _value{ value } {}
 
 		constexpr auto operator()() const -> auto&
@@ -115,20 +115,15 @@ namespace Et {
 			return _value;
 		}
 
-		constexpr auto SetCache(value_t const& delta) const -> void
+		constexpr auto AddDelta(value_t delta)
 		{
-			_cache = delta;
-		}
-
-		constexpr auto SetValueAndResetCache(double learning_rate) -> void
-		{
-			_value -= learning_rate * _cache;
-			_cache = 0.0;
+			_value += delta;
 		}
 	};
 
 	VariableExpr(int const&)->VariableExpr<ScalarD>;
 	VariableExpr(double const&)->VariableExpr<ScalarD>;
+	VariableExpr(float const&)->VariableExpr<ScalarD>;
 
 	template <typename E1, typename E2>
 	class AddExpr : public Expr, private BinaryExpr
@@ -558,8 +553,13 @@ namespace Et {
 		return { std::forward<E1>(first_expr) };
 	}
 
+	struct _impl_BinaryNode {};
+	struct _impl_UnaryNode {};
+	struct _impl_UntrainableNode {};
+	struct _impl_TrainableNode {};
+
 	template <typename E, int I1, int I2>
-	class BinaryNode
+	class BinaryNode : private _impl_BinaryNode
 	{
 	public:
 		using expr_t = std::decay<E>;
@@ -602,7 +602,7 @@ namespace Et {
 	};
 
 	template <typename E, int I1>
-	class UnaryNode
+	class UnaryNode : private _impl_UnaryNode
 	{
 	public:
 		using expr_t = std::decay<E>;
@@ -641,7 +641,7 @@ namespace Et {
 	};
 
 	template <typename E, typename = void>
-	class TerminalNode
+	class TerminalNode : private _impl_UntrainableNode
 	{
 	public:
 		using expr_t = std::decay<E>;
@@ -670,7 +670,7 @@ namespace Et {
 	};
 
 	template <typename E>
-	class TerminalNode<E, std::enable_if_t<std::is_base_of_v<TrainableExpr, E>>>
+	class TerminalNode<E, std::enable_if_t<std::is_base_of_v<TrainableExpr, E>>> : private _impl_TrainableNode
 	{
 	public:
 		using expr_t = std::decay<E>;
@@ -692,118 +692,14 @@ namespace Et {
 			_gradient += addition;
 		}
 
-		constexpr auto UpdateVariable() const -> void
+		constexpr auto UpdateVariable(double learning_rate) const -> void
 		{
-			// TODO update variableexpr for this
+			_expr->AddDelta(learning_rate * _gradient);
 		}
 		
-		constexpr void ResetGradient()
+		constexpr auto ResetGrad() -> void
 		{
 			_gradient = Num::zero_v<typename E::value_t>;
-		}
-	};
-
-	template <typename E, int... Ints>
-	class Node;
-
-	template <typename E>
-	class Node<E> : TerminalExpr
-	{
-	public:
-		using expr_t = E;
-
-	private:
-		E* _expr;
-
-	public:
-		typename E::value_t _gradient;
-
-		constexpr Node() : _expr(nullptr), _gradient(0.0) {}
-
-		constexpr void SetLocalGrads(E* const expr)
-		{
-			_expr = expr;
-		}
-
-		constexpr void SetVariableCache() const 
-		{
-			if constexpr (std::is_base_of_v<TrainableExpr, expr_t>)
-			{
-				_expr->_cache += _gradient;
-			}
-		}
-
-		constexpr void ResetGradient()
-		{
-			_gradient = static_cast<typename E::value_t>(0.0);
-		}
-	};
-
-	template <typename E, int I>
-	class Node<E, I> : UnaryExpr
-	{
-	public:
-		using expr_t = E;
-		constexpr static int child_one_v = I;
-		
-	public:
-		E* _expr;
-		typename E::value_t _gradient;
-		typename E::first_local_grad_t _first_local_grad;
-		
-		constexpr Node() : _expr(nullptr), _gradient(0.0), _first_local_grad(0.0) {}
-
-		constexpr void SetLocalGrads(E* const expr, typename E::first_local_grad_t first_local_grad)
-		{
-			_expr = expr;
-			_first_local_grad = first_local_grad;
-		}
-
-		template <typename T>
-		constexpr void SetGrads(T& tuple) const
-		{
-			std::get<I>(tuple)._gradient += _gradient * _first_local_grad;
-		}
-
-		constexpr void ResetGradient()
-		{
-			_gradient = static_cast<typename E::value_t>(0.0);
-		}
-	};
-
-	template <typename E, int I1, int I2>
-	class Node<E, I1, I2> : BinaryExpr
-	{
-	public:
-		using expr_t = E;
-		constexpr static int child_one_v = I1;
-		constexpr static int child_two_v = I2;
-
-	public:
-		E* _expr;
-		typename E::value_t _gradient;
-		typename E::first_local_grad_t _first_local_grad;
-		typename E::second_local_grad_t _second_local_grad;
-
-		constexpr Node() : _expr(nullptr), _gradient(0.0), _first_local_grad(0.0), _second_local_grad(0.0) {}
-
-		constexpr void SetLocalGrads(E* const expr, typename E::first_local_grad_t first_local_grad, typename E::second_local_grad_t second_local_grad)
-		{
-			_expr = expr;
-			_first_local_grad = first_local_grad;
-			_second_local_grad = second_local_grad;
-		}
-
-		template <typename T>
-		constexpr void SetGrads(T& tuple) const
-		{
-			std::get<I1>(tuple)._gradient += _gradient * _first_local_grad;
-			std::get<I2>(tuple)._gradient += _gradient * _second_local_grad;
-		}
-
-		constexpr void ResetGradient()
-		{
-			_gradient = static_cast<typename E::value_t>(0.0);
 		}
 	};
 
@@ -847,7 +743,7 @@ namespace Et {
 	template <typename E, int I>
 	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<TerminalExpr, E>>> {
 
-		using type = std::tuple<Node<E>>;
+		using type = std::tuple<TerminalNode<E>>;
 	};
 
 	template <typename E, int I>
@@ -858,7 +754,7 @@ namespace Et {
 
 		using type = decltype(std::tuple_cat(
 			std::declval<_impl_dfs_final_tuple_t<typename E::first_expr_t, I - 1>>(),
-			std::declval<std::tuple<Node<E, I - 2>>>()
+			std::declval<std::tuple<UnaryNode<E, I - 2>>>()
 		));
 	};
 
@@ -868,7 +764,7 @@ namespace Et {
 		using type = decltype(std::tuple_cat(
 			std::declval<_impl_dfs_final_tuple_t<typename E::first_expr_t, I - 1 - dfs_tuple_size_v<typename E::second_expr_t>>>(),
 			std::declval<_impl_dfs_final_tuple_t<typename E::second_expr_t, I - 1>>(),
-			std::declval<std::tuple<Node<E, I - 2 - dfs_tuple_size_v<typename E::second_expr_t>, I - 2>>>()
+			std::declval<std::tuple<BinaryNode<E, I - 2 - dfs_tuple_size_v<typename E::second_expr_t>, I - 2>>>()
 		));
 	};
 
@@ -882,76 +778,76 @@ namespace Et {
 	private:
 		static_assert(is_expr_v<E>);
 		using tuple_t = typename dfs_final_tuple_t<E>;
-		using result_t = typename std::decay_t<decltype(std::declval<E>()())>;
+		using result_t = typename E::value_t;
 
-		tuple_t _tup;
+		tuple_t _tuple;
 		E& _expr;
 		result_t _result;
 
 		template <typename... Args>
-		constexpr void _Helper_FeedPlaceholders(Args&& ... args)
+		constexpr auto _Helper_FeedPlaceholders(Args&& ... args) -> void
 		{
 			((args.first->FeedValue(args.second)), ...);
 		}
 
 		template <int I>
-		constexpr void _Helper_Backprop()
+		constexpr auto _impl_BackwardPass(double learning_rate) -> void
 		{
-			if constexpr (I == std::tuple_size_v<tuple_t> -1)
+			using node_t = typename std::tuple_element_t<I, tuple_t>;
+
+			if constexpr (std::is_base_of_v<_impl_TrainableNode, node_t>)
 			{
-				std::get<I>(_tup)._gradient = (typename std::tuple_element_t<I, tuple_t>::expr_t::value_t)(1.0);
+				std::get<I>(_tuple).UpdateVariable(learning_rate);
 			}
-			if constexpr (std::is_base_of_v<TerminalExpr, std::tuple_element_t<I, tuple_t>>)
+			else if constexpr (std::is_base_of_v<_impl_UnaryNode, node_t> || std::is_base_of_v<_impl_BinaryNode, node_t>)
 			{
-				std::get<I>(_tup).SetVariableCache();
+				std::get<I>(_tuple).SetChildGrads(_tuple);
 			}
-			else
-			{
-				std::get<I>(_tup).SetGrads(_tup);
-			}
-			std::get<I>(_tup).ResetGradient();
+
+			std::get<I>(_tuple).ResetGrad();
+
 			if constexpr (I > 0)
 			{
-				_Helper_Backprop<I - 1>();
+				_impl_BackwardPass<I - 1>(learning_rate);
 			}
-		}
-
-		template <typename... Vars>
-		constexpr void _Helper_ApplyGradients(double learning_rate, Vars& ... vars)
-		{
-			((vars.SetValueAndResetCache(learning_rate)), ...);
 		}
 
 	public:
-		
-		constexpr GradientDescentOptimizer(E& expr) : _expr(expr) {}
+		constexpr GradientDescentOptimizer(E& expr) : _expr{ expr } {}
+
 		template <typename... Args>
-		constexpr GradientDescentOptimizer& FeedPlaceholders(Args&& ... args)
+		constexpr auto FeedPlaceholders(Args&& ... args) -> GradientDescentOptimizer &
 		{
 			_Helper_FeedPlaceholders(std::forward<Args...>(args...));
 			return *this;
 		}
 
-		constexpr GradientDescentOptimizer& Eval()
+		constexpr auto ForwardPass() -> GradientDescentOptimizer &
 		{
-			_result = _expr.template Eval<dfs_tuple_size_v<E> - 1>(_tup);
+			_result = _expr.template Eval<dfs_tuple_size_v<E> - 1>(_tuple);
 			return *this;
 		}
 
-		template <typename... Vars>
-		constexpr GradientDescentOptimizer& Backpass(double learning_rate, Vars& ... vars)
+		constexpr auto Minimize(double learning_rate) -> GradientDescentOptimizer &
 		{
-			_Helper_Backprop<dfs_tuple_size_v<E> - 1>();
-			_Helper_ApplyGradients(learning_rate, vars...);
+			std::get<dfs_tuple_size_v<E>-1>(_tuple).AddMyGrad(Num::identity_v<typename E::value_t>);
+			_impl_BackwardPass<dfs_tuple_size_v<E> - 1>(-learning_rate);
 			return *this;
 		}
 
-		constexpr result_t GetPreResult()
+		constexpr auto Maximize(double learning_rate) -> GradientDescentOptimizer &
+		{
+			std::get<dfs_tuple_size_v<E>-1>(_tuple).AddMyGrad(Num::identity_v<typename E::value_t>);
+			_impl_BackwardPass<dfs_tuple_size_v<E> - 1>(learning_rate);
+			return *this;
+		}
+
+		constexpr auto GetPreResult() -> result_t
 		{
 			return _result;
 		}
 
-		constexpr result_t GetPostResult()
+		constexpr auto GetPostResult() -> result_t
 		{
 			return _expr();
 		}
