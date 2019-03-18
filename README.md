@@ -3,9 +3,9 @@
 ## A basic automatic differentiation library built with C++ expression templates.
 
  ```cpp
-Et::ConstantExpr<> C1{ 4 }, C2{ 2 };
-Et::VariableExpr<> X1{ 5.53 }, X2{ -3.12 };
-Et::PlaceholderExpr<> P;
+Et::ConstantExpr C1{ 4 }, C2{ 2 };
+Et::VariableExpr X1{ 5.53 }, X2{ -3.12 };
+Et::PlaceholderExpr P;
  ```
 
 ### Declaration of Constants,Variables & Placeholder objects.
