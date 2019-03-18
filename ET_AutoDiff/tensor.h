@@ -52,7 +52,10 @@ namespace Num
 	};
 
 	template <typename T, typename = std::enable_if_t<is_tensor_v<T>>>
-	constexpr T default_v = T{};
+	constexpr T zero_v = T{};
+
+	template <typename T, typename = std::enable_if_t<is_tensor_v<T>>>
+	constexpr T identity_v = T{ 1.0 };
 
 	template <typename T>
 	constexpr Scaler<T> operator+(Scaler<T> const& first, Scaler<T> const& second) 
