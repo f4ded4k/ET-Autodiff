@@ -11,45 +11,66 @@ namespace Num
 	template<typename T>
 	constexpr bool is_tensor_v = std::is_base_of_v<Tensor, T>;
 
-	template <typename>
-	class Scaler;
-
-	template<>
-	class Scaler<double> : public Tensor
+	template <typename V1, typename V2>
+	struct num_result
 	{
+		using type = long double;
+	};
+
+	template <>
+	struct num_result<double, double>
+	{
+		using type = double;
+	};
+
+	template <typename V1, typename V2>
+	using num_result_t = typename num_result<V1, V2>::type;
+
+	template<typename V>
+	class Scalar : private Tensor
+	{
+	public:
+		using num_type = V;
 
 	private:
-		double value_;
+		V _value;
 
 	public:
-		constexpr Scaler(double value = 0.0) : value_(value) {}
+		constexpr Scalar(V const& value = 0.0) : _value(value) {}
 
-		constexpr Scaler<double> Inverse() const
+		constexpr auto Inverse() const -> Scalar<V>
 		{
-			return Scaler<double>(1.0 / value_);
+			return Scalar<V>(1.0 / _value);
 		}
 
-		constexpr double GetValue() const 
+		constexpr auto GetValue() const -> V const&
 		{ 
-			return value_; 
+			return _value; 
 		}
-		constexpr operator double() const 
+		constexpr operator V() const 
 		{ 
-			return value_; 
+			return _value; 
 		}
 
-		constexpr Scaler<double>& operator+=(const Scaler<double>& other)
+		constexpr auto operator+=(Scalar<V> const& other) -> Scalar<V> &
 		{
-			this->value_ += other.GetValue();
+			this->_value += other.GetValue();
 			return *this;
 		}
 
-		constexpr Scaler<double>& operator-=(const Scaler<double>& other)
+		constexpr auto operator-=(Scalar<V> const& other) -> Scalar<V> &
 		{
-			this->value_ -= other.GetValue();
+			this->_value -= other.GetValue();
 			return *this;
 		}
 	};
+
+	Scalar(int const&)->Scalar<double>;
+	Scalar(float const&)->Scalar<double>;
+	Scalar(double const&)->Scalar<double>;
+	Scalar(long const&)->Scalar<long double>;
+	Scalar(long long const&)->Scalar<long double>;
+	Scalar(long double const&)->Scalar<long double>;
 
 	template <typename T, typename = std::enable_if_t<is_tensor_v<T>>>
 	constexpr T zero_v = T{};
@@ -57,69 +78,69 @@ namespace Num
 	template <typename T, typename = std::enable_if_t<is_tensor_v<T>>>
 	constexpr T identity_v = T{ 1.0 };
 
-	template <typename T>
-	constexpr Scaler<T> operator+(Scaler<T> const& first, Scaler<T> const& second) 
+	template <typename V1, typename V2>
+	constexpr auto operator+(Scalar<V1> const& first, Scalar<V2> const& second) -> Scalar<typename num_result_t<V1, V2>>
 	{
-		return Scaler<T>(first.GetValue() + second.GetValue());
+		return { first.GetValue() + second.GetValue() };
+	}
+
+	template <typename V1, typename V2>
+	constexpr auto operator-(Scalar<V1> const& first, Scalar<V2> const& second) -> Scalar<typename num_result_t<V1, V2>>
+	{
+		return { first.GetValue() - second.GetValue() };
 	}
 
 	template <typename T>
-	constexpr Scaler<T> operator-(Scaler<T> const& first, Scaler<T> const& second) 
+	constexpr auto operator-(Scalar<T> const& first) -> Scalar<T>
 	{
-		return Scaler<T>(first.GetValue() - second.GetValue());
+		return { -first.GetValue() };
+	}
+
+	template <typename V1, typename V2>
+	constexpr auto operator*(Scalar<V1> const& first, Scalar<V2> const& second) -> Scalar<typename num_result_t<V1, V2>>
+	{
+		return { first.GetValue() * second.GetValue() };
+	}
+
+	template <typename V1, typename V2>
+	constexpr auto operator/(Scalar<V1> const& first, Scalar<V2> const& second) -> Scalar<typename num_result_t<V1, V2>>
+	{
+		return { first.GetValue() / second.GetValue() };
+	}
+
+	template <typename V1, typename V2>
+	constexpr auto pow(Scalar<V1> const& first, Scalar<V2> const& second) -> Scalar<typename num_result_t<V1, V2>>
+	{
+		return { std::pow(first.GetValue(),second.GetValue()) };
 	}
 
 	template <typename T>
-	constexpr Scaler<T> operator-(Scaler<T> const& first) 
+	constexpr auto sin(Scalar<T> const& first) -> Scalar<T>
 	{
-		return Scaler<T>(-first.GetValue());
+		return { std::sin(first.GetValue()) };
 	}
 
 	template <typename T>
-	constexpr Scaler<T> operator*(Scaler<T> const& first, Scaler<T> const& second) 
+	constexpr auto cos(Scalar<T> const& first) -> Scalar<T>
 	{
-		return Scaler<T>(first.GetValue() * second.GetValue());
+		return { std::cos(first.GetValue()) };
 	}
 
 	template <typename T>
-	constexpr Scaler<T> operator/(Scaler<T> const& first, Scaler<T> const& second) 
+	constexpr auto tan(Scalar<T> const& first) -> Scalar<T>
 	{
-		return Scaler<T>(first.GetValue() / second.GetValue());
+		return { std::tan(first.GetValue()) };
 	}
 
 	template <typename T>
-	constexpr Scaler<T> pow(Scaler<T> const& first, Scaler<T> const& second) 
+	constexpr auto sec(Scalar<T> const& first) -> Scalar<T>
 	{
-		return Scaler<T>(std::pow(first.GetValue(), second.GetValue()));
+		return { 1.0 / std::cos(first.GetValue()) };
 	}
 
 	template <typename T>
-	constexpr Scaler<T> sin(Scaler<T> const& first) 
+	constexpr auto log(Scalar<T> const& first) -> Scalar<T>
 	{
-		return Scaler<T>(std::sin(first.GetValue()));
-	}
-
-	template <typename T>
-	constexpr Scaler<T> cos(Scaler<T> const& first) 
-	{
-		return Scaler<T>(std::cos(first.GetValue()));
-	}
-
-	template <typename T>
-	constexpr Scaler<T> tan(Scaler<T> const& first) 
-	{
-		return Scaler<T>(std::tan(first.GetValue()));
-	}
-
-	template <typename T>
-	constexpr Scaler<T> sec(Scaler<T> const& first)
-	{
-		return Scaler<T>(1.0 / std::cos(first.GetValue()));
-	}
-
-	template <typename T>
-	constexpr Scaler<T> log(Scaler<T> const& first) 
-	{
-		return Scaler<T>(std::log(first.GetValue()));
+		return { std::log(first.GetValue()) };
 	}
 }

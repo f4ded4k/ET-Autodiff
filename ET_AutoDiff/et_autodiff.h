@@ -2,13 +2,13 @@
 
 #include <type_traits>
 #include <tuple>
-#include <initializer_list>
 #include <cmath>
 #include "tensor.h"
 
 namespace Et {
 
-	using ScalarD = Num::Scaler<double>;
+	using ScalarD = Num::Scalar<double>;
+	using ScalarL = Num::Scalar<long double>;
 
 	template <typename T1, typename T2>
 	constexpr auto PlFeed(T1& first, T2 const& second)
@@ -55,6 +55,9 @@ namespace Et {
 	ConstantExpr(int const&)->ConstantExpr<ScalarD>;
 	ConstantExpr(double const&)->ConstantExpr<ScalarD>;
 	ConstantExpr(float const&)->ConstantExpr<ScalarD>;
+	ConstantExpr(long const&)->ConstantExpr<ScalarL>;
+	ConstantExpr(long long const&)->ConstantExpr<ScalarL>;
+	ConstantExpr(long double const&)->ConstantExpr<ScalarL>;
 
 	template <typename V>
 	class PlaceholderExpr : public Expr, private TerminalExpr
@@ -124,6 +127,9 @@ namespace Et {
 	VariableExpr(int const&)->VariableExpr<ScalarD>;
 	VariableExpr(double const&)->VariableExpr<ScalarD>;
 	VariableExpr(float const&)->VariableExpr<ScalarD>;
+	VariableExpr(long const&)->VariableExpr<ScalarL>;
+	VariableExpr(long long const&)->VariableExpr<ScalarL>;
+	VariableExpr(long double const&)->VariableExpr<ScalarL>;
 
 	template <typename E1, typename E2>
 	class AddExpr : public Expr, private BinaryExpr

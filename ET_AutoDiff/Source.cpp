@@ -4,8 +4,6 @@
 #include <chrono>
 #include "et_autodiff.h"
 
-
-
 void Test() 
 {
 	Et::ConstantExpr C1{ 4 }, C2{ 2 };
@@ -29,13 +27,11 @@ void Test()
 
 		<< std::endl;
 	}
-
 	std::cout << std::endl;
-
 	std::cout << "Final Value : " << Optimizer.GetPostResult() << std::endl;
 }
 
-int main() 
+int main()
 {
 	auto begin = std::chrono::high_resolution_clock::now();
 	
