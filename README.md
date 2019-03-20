@@ -24,24 +24,23 @@ Et::GradientDescentOptimizer Optimizer{ Y };
 
 ```cpp
 int Iterations = 1000;
-	for (int i = 0; i < Iterations; i++)
+for (int i = 0; i < Iterations; i++)
 {
-  std::cout << "Value at #" << i + 1 << " : " <<
+   std::cout << "Value at #" << i + 1 << " : " <<
 
-  Optimizer
-    .FeedPlaceholders(Et::PlFeed(P, -6.3))
-    .Eval()
-    .Backpass(0.01, X1, X2)
-    .GetPreResult()
-  
-  << std::endl;
+   Optimizer
+      .ForwardPass(Et::H(P, -6.3))
+      .Minimize(0.01)
+      .GetPreResult()
+
+   << std::endl;
 }
 ```
 
 ### Apply Backpropagation 1,000 times.
 
 ```cpp
-std::cout << "Final Value :" << Y() << std::endl;
+std::cout << "Final Value : " << Optimizer.GetPostResult() << std::endl;
 ```
 
 ### Print the final value of the Cost function.
