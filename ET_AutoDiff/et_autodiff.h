@@ -10,24 +10,18 @@ namespace Et {
 	using ScalarD = Num::Scalar<double>;
 	using ScalarL = Num::Scalar<long double>;
 
-	template <typename T1, typename T2>
-	constexpr auto PlFeed(T1& first, T2 const& second)
-	{
-		return std::make_pair(&first, second);
-	}
-
 	struct Expr {};
 
-	struct TerminalExpr {};
-	struct BinaryExpr {};
-	struct UnaryExpr {};
-	struct TrainableExpr {};
+	struct _impl_TerminalExpr {};
+	struct _impl_BinaryExpr {};
+	struct _impl_UnaryExpr {};
+	struct _impl_TrainableExpr {};
 
 	template<typename... T>
 	constexpr bool is_expr_v = std::conjunction_v<std::is_base_of<Expr, std::decay_t<T>>...>;
 
 	template <typename V>
-	class ConstantExpr : public Expr, private TerminalExpr
+	class ConstantExpr : public Expr, private _impl_TerminalExpr
 	{
 	public:
 		static_assert(Num::is_tensor_v<V>);
@@ -60,7 +54,7 @@ namespace Et {
 	ConstantExpr(long double const&)->ConstantExpr<ScalarL>;
 
 	template <typename V>
-	class PlaceholderExpr : public Expr, private TerminalExpr
+	class PlaceholderExpr : public Expr, private _impl_TerminalExpr
 	{
 	public:
 		static_assert(Num::is_tensor_v<V>);
@@ -94,7 +88,7 @@ namespace Et {
 	PlaceholderExpr()->PlaceholderExpr<ScalarD>;
 
 	template <typename V>
-	class VariableExpr : public Expr, private TerminalExpr, private TrainableExpr
+	class VariableExpr : public Expr, private _impl_TerminalExpr, private _impl_TrainableExpr
 	{
 	public:
 		static_assert(Num::is_tensor_v<V>);
@@ -132,7 +126,7 @@ namespace Et {
 	VariableExpr(long double const&)->VariableExpr<ScalarL>;
 
 	template <typename E1, typename E2>
-	class AddExpr : public Expr, private BinaryExpr
+	class AddExpr : public Expr, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -171,7 +165,7 @@ namespace Et {
 	AddExpr(E1&&, E2&&)->AddExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class MultiplyExpr : public Expr, private BinaryExpr
+	class MultiplyExpr : public Expr, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -210,7 +204,7 @@ namespace Et {
 	MultiplyExpr(E1&&, E2&&)->MultiplyExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class SubtractExpr : public Expr, private BinaryExpr
+	class SubtractExpr : public Expr, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -249,7 +243,7 @@ namespace Et {
 	SubtractExpr(E1&&, E2&&)->SubtractExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class DivideExpr : public Expr, private BinaryExpr
+	class DivideExpr : public Expr, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -289,7 +283,7 @@ namespace Et {
 	DivideExpr(E1&&, E2&&)->DivideExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class PowerExpr : public Expr, private BinaryExpr
+	class PowerExpr : public Expr, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -329,7 +323,7 @@ namespace Et {
 	PowerExpr(E1&&, E2&&)->PowerExpr<E1, E2>;
 
 	template <typename E1>
-	class NegateExpr : public Expr, private UnaryExpr
+	class NegateExpr : public Expr, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -363,7 +357,7 @@ namespace Et {
 	NegateExpr(E1&&)->NegateExpr<E1>;
 
 	template <typename E1>
-	class LogExpr : public Expr, private UnaryExpr
+	class LogExpr : public Expr, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -397,7 +391,7 @@ namespace Et {
 	LogExpr(E1&&)->LogExpr<E1>;
 
 	template <typename E1>
-	class SinExpr : public Expr, private UnaryExpr
+	class SinExpr : public Expr, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -431,7 +425,7 @@ namespace Et {
 	SinExpr(E1&&)->SinExpr<E1>;
 
 	template <typename E1>
-	class CosExpr : public Expr, private UnaryExpr
+	class CosExpr : public Expr, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -465,7 +459,7 @@ namespace Et {
 	CosExpr(E1&&)->CosExpr<E1>;
 
 	template <typename E1>
-	class TanExpr : public Expr, private UnaryExpr
+	class TanExpr : public Expr, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -676,7 +670,7 @@ namespace Et {
 	};
 
 	template <typename E>
-	class TerminalNode<E, std::enable_if_t<std::is_base_of_v<TrainableExpr, E>>> : private _impl_TrainableNode
+	class TerminalNode<E, std::enable_if_t<std::is_base_of_v<_impl_TrainableExpr, E>>> : private _impl_TrainableNode
 	{
 	public:
 		using expr_t = std::decay<E>;
@@ -713,7 +707,7 @@ namespace Et {
 	struct dfs_tuple;
 
 	template <typename E>
-	struct dfs_tuple<E, std::enable_if_t<std::is_base_of_v<TerminalExpr, E>>> {
+	struct dfs_tuple<E, std::enable_if_t<std::is_base_of_v<_impl_TerminalExpr, E>>> {
 
 		using type = std::tuple<E>;
 	};
@@ -722,7 +716,7 @@ namespace Et {
 	using dfs_tuple_t = typename dfs_tuple<E>::type;
 
 	template <typename E>
-	struct dfs_tuple<E, std::enable_if_t<std::is_base_of_v<UnaryExpr, E>>> {
+	struct dfs_tuple<E, std::enable_if_t<std::is_base_of_v<_impl_UnaryExpr, E>>> {
 
 		using type = decltype(std::tuple_cat(
 			std::declval<dfs_tuple_t<typename E::first_expr_t>>(),
@@ -731,7 +725,7 @@ namespace Et {
 	};
 
 	template <typename E>
-	struct dfs_tuple<E, std::enable_if_t<std::is_base_of_v<BinaryExpr, E>>> {
+	struct dfs_tuple<E, std::enable_if_t<std::is_base_of_v<_impl_BinaryExpr, E>>> {
 
 		using type = decltype(std::tuple_cat(
 			std::declval<dfs_tuple_t<typename E::first_expr_t>>(),
@@ -747,7 +741,7 @@ namespace Et {
 	struct _impl_dfs_final_tuple;
 
 	template <typename E, int I>
-	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<TerminalExpr, E>>> {
+	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<_impl_TerminalExpr, E>>> {
 
 		using type = std::tuple<TerminalNode<E>>;
 	};
@@ -756,7 +750,7 @@ namespace Et {
 	using _impl_dfs_final_tuple_t = typename _impl_dfs_final_tuple<E, I>::type;
 
 	template <typename E, int I>
-	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<UnaryExpr, E>>> {
+	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<_impl_UnaryExpr, E>>> {
 
 		using type = decltype(std::tuple_cat(
 			std::declval<_impl_dfs_final_tuple_t<typename E::first_expr_t, I - 1>>(),
@@ -765,7 +759,7 @@ namespace Et {
 	};
 
 	template <typename E, int I>
-	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<BinaryExpr, E>>> {
+	struct _impl_dfs_final_tuple<E, I, std::enable_if_t<std::is_base_of_v<_impl_BinaryExpr, E>>> {
 
 		using type = decltype(std::tuple_cat(
 			std::declval<_impl_dfs_final_tuple_t<typename E::first_expr_t, I - 1 - dfs_tuple_size_v<typename E::second_expr_t>>>(),
@@ -777,6 +771,18 @@ namespace Et {
 	template <typename E>
 	using dfs_final_tuple_t = _impl_dfs_final_tuple_t<E, dfs_tuple_size_v<E>>;
 
+
+	template <typename V>
+	struct H
+	{
+		PlaceholderExpr<V>& _placeholder;
+		V const& _value;
+
+		H(PlaceholderExpr<V>& placeholder, V const& value) : _placeholder{ placeholder }, _value{ value } {}
+	};
+
+	template <typename V, typename S>
+	H(PlaceholderExpr<V>&, S const&)->H<V>;
 
 	template <typename E>
 	class GradientDescentOptimizer
@@ -790,10 +796,10 @@ namespace Et {
 		E& _expr;
 		result_t _result;
 
-		template <typename... Args>
-		constexpr auto _Helper_FeedPlaceholders(Args&& ... args) -> void
+		template <typename... Vs>
+		constexpr auto _impl_FeedPlaceholders(H<Vs>&& ... hs) -> void
 		{
-			((args.first->FeedValue(args.second)), ...);
+			((hs._placeholder.FeedValue(hs._value)), ...);
 		}
 
 		template <int I>
@@ -821,16 +827,11 @@ namespace Et {
 	public:
 		constexpr GradientDescentOptimizer(E& expr) : _expr{ expr } {}
 
-		template <typename... Args>
-		constexpr auto FeedPlaceholders(Args&& ... args) -> GradientDescentOptimizer &
+		template <typename... Vs>
+		constexpr auto ForwardPass(H<Vs>&& ... hs) -> GradientDescentOptimizer &
 		{
-			_Helper_FeedPlaceholders(std::forward<Args...>(args...));
-			return *this;
-		}
-
-		constexpr auto ForwardPass() -> GradientDescentOptimizer &
-		{
-			_result = _expr.template Eval<dfs_tuple_size_v<E> - 1>(_tuple);
+			_impl_FeedPlaceholders(std::forward<H<Vs>...>(hs...));
+			_result = _expr.template Eval<dfs_tuple_size_v<E> -1>(_tuple);
 			return *this;
 		}
 

@@ -19,9 +19,8 @@ void Test()
 	{
 		std::cout << "Value at #" << i + 1 << " : " <<
 
-		Optimizer
-			.FeedPlaceholders(Et::PlFeed(P, -6.3))
-			.ForwardPass()
+			Optimizer
+			.ForwardPass(Et::H(P, -6.3))
 			.Minimize(0.01)
 			.GetPreResult()
 
