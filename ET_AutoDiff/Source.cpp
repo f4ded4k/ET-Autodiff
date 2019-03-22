@@ -4,7 +4,17 @@
 #include <chrono>
 #include "et_autodiff.h"
 
-void Test() 
+#if defined(_DEBUG)
+template <class T> constexpr std::string_view
+type_name()
+{
+	using namespace std;
+	string_view p = __FUNCSIG__;
+	return string_view(p.data() + 84, p.size() - 84 - 7);
+}
+#endif 
+
+void AutodiffTest() 
 {
 	Et::ConstantExpr C1{ 4 }, C2{ 2 };
 	Et::VariableExpr X1{ 5.53 }, X2{ -3.12 };
@@ -30,11 +40,17 @@ void Test()
 	std::cout << "Final Value : " << Optimizer.GetPostResult() << std::endl;
 }
 
+void TensorTests()
+{
+	auto x = TTest::TensorFactory::MakeRandomTensor<double, 10000, 10000>(-1.0, 1.0);
+}
+
 int main()
 {
 	auto begin = std::chrono::high_resolution_clock::now();
-	
-	Test();
+
+	AutodiffTest();
+	//TensorTests();
 
 	auto end = std::chrono::high_resolution_clock::now();
 
