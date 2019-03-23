@@ -10,7 +10,7 @@ namespace Et {
 	using ScalarD = Num::Scalar<double>;
 	using ScalarL = Num::Scalar<long double>;
 
-	struct Expr {};
+	struct ExprBase {};
 
 	struct _impl_TerminalExpr {};
 	struct _impl_BinaryExpr {};
@@ -18,10 +18,10 @@ namespace Et {
 	struct _impl_TrainableExpr {};
 
 	template<typename... T>
-	constexpr bool is_expr_v = std::conjunction_v<std::is_base_of<Expr, std::decay_t<T>>...>;
+	constexpr bool is_expr_v = std::conjunction_v<std::is_base_of<ExprBase, std::decay_t<T>>...>;
 
 	template <typename V>
-	class ConstantExpr : public Expr, private _impl_TerminalExpr
+	class ConstantExpr : private ExprBase, private _impl_TerminalExpr
 	{
 	public:
 		static_assert(Num::is_tensor_v<V>);
@@ -54,7 +54,7 @@ namespace Et {
 	ConstantExpr(long double const&)->ConstantExpr<ScalarL>;
 
 	template <typename V>
-	class PlaceholderExpr : public Expr, private _impl_TerminalExpr
+	class PlaceholderExpr : private ExprBase, private _impl_TerminalExpr
 	{
 	public:
 		static_assert(Num::is_tensor_v<V>);
@@ -88,7 +88,7 @@ namespace Et {
 	PlaceholderExpr()->PlaceholderExpr<ScalarD>;
 
 	template <typename V>
-	class VariableExpr : public Expr, private _impl_TerminalExpr, private _impl_TrainableExpr
+	class VariableExpr : private ExprBase, private _impl_TerminalExpr, private _impl_TrainableExpr
 	{
 	public:
 		static_assert(Num::is_tensor_v<V>);
@@ -126,7 +126,7 @@ namespace Et {
 	VariableExpr(long double const&)->VariableExpr<ScalarL>;
 
 	template <typename E1, typename E2>
-	class AddExpr : public Expr, private _impl_BinaryExpr
+	class AddExpr : private ExprBase, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -165,7 +165,7 @@ namespace Et {
 	AddExpr(E1&&, E2&&)->AddExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class MultiplyExpr : public Expr, private _impl_BinaryExpr
+	class MultiplyExpr : private ExprBase, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -204,7 +204,7 @@ namespace Et {
 	MultiplyExpr(E1&&, E2&&)->MultiplyExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class SubtractExpr : public Expr, private _impl_BinaryExpr
+	class SubtractExpr : private ExprBase, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -243,7 +243,7 @@ namespace Et {
 	SubtractExpr(E1&&, E2&&)->SubtractExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class DivideExpr : public Expr, private _impl_BinaryExpr
+	class DivideExpr : private ExprBase, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -283,7 +283,7 @@ namespace Et {
 	DivideExpr(E1&&, E2&&)->DivideExpr<E1, E2>;
 
 	template <typename E1, typename E2>
-	class PowerExpr : public Expr, private _impl_BinaryExpr
+	class PowerExpr : private ExprBase, private _impl_BinaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1, E2>);
@@ -323,7 +323,7 @@ namespace Et {
 	PowerExpr(E1&&, E2&&)->PowerExpr<E1, E2>;
 
 	template <typename E1>
-	class NegateExpr : public Expr, private _impl_UnaryExpr
+	class NegateExpr : private ExprBase, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -357,7 +357,7 @@ namespace Et {
 	NegateExpr(E1&&)->NegateExpr<E1>;
 
 	template <typename E1>
-	class LogExpr : public Expr, private _impl_UnaryExpr
+	class LogExpr : private ExprBase, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -391,7 +391,7 @@ namespace Et {
 	LogExpr(E1&&)->LogExpr<E1>;
 
 	template <typename E1>
-	class SinExpr : public Expr, private _impl_UnaryExpr
+	class SinExpr : private ExprBase, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -425,7 +425,7 @@ namespace Et {
 	SinExpr(E1&&)->SinExpr<E1>;
 
 	template <typename E1>
-	class CosExpr : public Expr, private _impl_UnaryExpr
+	class CosExpr : private ExprBase, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
@@ -459,7 +459,7 @@ namespace Et {
 	CosExpr(E1&&)->CosExpr<E1>;
 
 	template <typename E1>
-	class TanExpr : public Expr, private _impl_UnaryExpr
+	class TanExpr : private ExprBase, private _impl_UnaryExpr
 	{
 	public:
 		static_assert(is_expr_v<E1>);
