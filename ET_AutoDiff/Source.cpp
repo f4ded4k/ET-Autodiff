@@ -45,7 +45,8 @@ void TensorTests()
 	auto x = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(5.0);
 	auto y = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(1.2);
 	auto a = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(1.2);
-	auto z = x + y * a;
+	auto z = 4 * x * y - tan(a) + a + log(a / y);
+	std::cout << z(3, 4) << std::endl;
 }
 
 int main()

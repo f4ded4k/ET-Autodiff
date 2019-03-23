@@ -254,7 +254,7 @@ namespace TTest
 	template <typename T, size_t... Ns>
 	using nD_array_t = _impl_nD_array_t<T, reverse_list_t<value_list<Ns...>>>;
 
-	class TensorBase;
+	class TensorBase {};
 
 	template<typename T>
 	constexpr bool is_tensor_v = std::is_base_of_v<TensorBase, T>;
@@ -408,9 +408,7 @@ namespace TTest
 	using std::log;
 
 	template <typename V1, typename V2, size_t... Ds>
-	constexpr auto operator+(
-		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
-		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	constexpr auto operator+(Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first, Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
 	{
 		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
 		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
@@ -424,9 +422,7 @@ namespace TTest
 	}
 
 	template <typename V1, typename V2, size_t... Ds>
-	constexpr auto operator*(
-		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
-		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	constexpr auto operator*(Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first, Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
 	{
 		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
 		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
@@ -439,10 +435,19 @@ namespace TTest
 		return result;
 	}
 
+	template <typename S, typename V, size_t... Ds>
+	constexpr auto operator*(S scalar, Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result{ first };
+		for (auto it = result.cbegin(); it != result.cend(); it++)
+		{
+			*it *= scalar;
+		}
+		return result;
+	}
+
 	template <typename V1, typename V2, size_t... Ds>
-	constexpr auto operator-(
-		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
-		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	constexpr auto operator-(Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first, Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
 	{
 		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
 		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
@@ -456,9 +461,7 @@ namespace TTest
 	}
 
 	template <typename V1, typename V2, size_t... Ds>
-	constexpr auto operator/(
-		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
-		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	constexpr auto operator/(Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first, Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
 	{
 		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
 		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
@@ -472,9 +475,7 @@ namespace TTest
 	}
 
 	template <typename V1, typename V2, size_t... Ds>
-	constexpr auto pow(
-		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
-		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	constexpr auto pow(Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first, Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
 	{
 		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
 		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
@@ -488,8 +489,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto operator-(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto operator-(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -501,8 +501,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto sin(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto sin(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -514,8 +513,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto cos(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto cos(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -527,8 +525,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto tan(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto tan(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -540,8 +537,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto log(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto log(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -553,8 +549,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto cosec(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto cosec(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -566,8 +561,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto sec(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto sec(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
@@ -579,8 +573,7 @@ namespace TTest
 	}
 
 	template <typename V, size_t... Ds>
-	constexpr auto tan(
-		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	constexpr auto cot(Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
 	{
 		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
 		auto it1 = first.cbegin();
