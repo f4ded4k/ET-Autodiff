@@ -254,11 +254,16 @@ namespace TTest
 	template <typename T, size_t... Ns>
 	using nD_array_t = _impl_nD_array_t<T, reverse_list_t<value_list<Ns...>>>;
 
+	class TensorBase;
+
+	template<typename T>
+	constexpr bool is_tensor_v = std::is_base_of_v<TensorBase, T>;
+
 	template <typename V, typename Tup, size_t... Ds>
 	class Tensor;
 
 	template <typename V, typename... Indices, size_t... Ds>
-	class Tensor<V, std::tuple<Indices...>, Ds...>
+	class Tensor<V, std::tuple<Indices...>, Ds...> : private TensorBase
 	{
 	public:
 		constexpr static size_t n_dims_v = sizeof...(Ds);
@@ -396,6 +401,12 @@ namespace TTest
 		}
 	};
 
+	using std::pow;
+	using std::sin;
+	using std::cos;
+	using std::tan;
+	using std::log;
+
 	template <typename V1, typename V2, size_t... Ds>
 	constexpr auto operator+(
 		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
@@ -459,12 +470,6 @@ namespace TTest
 		}
 		return result;
 	}
-
-	using std::pow;
-	using std::sin;
-	using std::cos;
-	using std::tan;
-	using std::log;
 
 	template <typename V1, typename V2, size_t... Ds>
 	constexpr auto pow(
