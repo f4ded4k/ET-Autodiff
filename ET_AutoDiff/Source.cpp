@@ -42,15 +42,18 @@ void AutodiffTest()
 
 void TensorTests()
 {
-	auto x = TTest::TensorFactory::MakeRandomTensor<double, 10000, 10000>(-1.0, 1.0);
+	auto x = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(5.0);
+	auto y = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(1.2);
+	auto a = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(1.2);
+	auto z = x + y * a;
 }
 
 int main()
 {
 	auto begin = std::chrono::high_resolution_clock::now();
 
-	AutodiffTest();
-	//TensorTests();
+	//AutodiffTest();
+	TensorTests();
 
 	auto end = std::chrono::high_resolution_clock::now();
 

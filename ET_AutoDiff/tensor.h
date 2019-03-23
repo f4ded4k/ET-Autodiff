@@ -189,7 +189,7 @@ namespace TTest
 	struct value_list {};
 
 	template <size_t... S1s, size_t... S2s>
-	value_list<S1s..., S2s...> value_list_cat(value_list<S1s...> const&, value_list<S2s...> const&)
+	constexpr auto value_list_cat(value_list<S1s...> const&, value_list<S2s...> const&) -> value_list<S1s...,S2s...>
 	{
 		return value_list<S1s..., S2s...>();
 	}
@@ -266,86 +266,103 @@ namespace TTest
 
 	private:
 		using array_t = nD_array_t<V, Ds...>;
-
-		template <typename VList>
-		struct _impl_GetVals;
-
-		template <size_t... Vs>
-		struct _impl_GetVals<value_list<Vs...>>
-		{
-			constexpr static V* _impl_cbegin(Tensor<V, std::tuple<Indices...>, Ds...>& encloser)
-			{
-				return &encloser(Vs...);
-			}
-		};
-
-		constexpr V* cbegin()
-		{
-			return _impl_GetVals<i_zeros_t<n_dims_v>>::_impl_cbegin(*this);
-		}
-
-
-		template <typename T, typename... Ts>
-		constexpr auto& _impl_get_at_index(T N, Ts... Ns)
-		{
-			if constexpr (sizeof...(Ts) > 0)
-			{
-				return _impl_get_at_index(Ns...)[N];
-			}
-			else
-			{
-				return _data[N];
-			}
-		}
-
-		template <typename T, typename... Ts>
-		constexpr auto& _impl_get_at_index(T N, Ts... Ns) const
-		{
-			if constexpr (sizeof...(Ts) > 0)
-			{
-				return _impl_get_at_index(Ns...)[N];
-			}
-			else
-			{
-				return _data[N];
-			}
-		}
-
-	private:
-		array_t& _data;
+		array_t* _data;
 
 	public:
-		constexpr Tensor() : _data{ *(new array_t) } {}
-
-		constexpr Tensor(V const& init_value) : Tensor()
+		constexpr Tensor() : _data{ new array_t } {}
+		
+		constexpr Tensor(Tensor<V, i_integrals_t<n_dims_v>, Ds...>&& temp_tensor) : _data{ temp_tensor._data }
 		{
-			std::uninitialized_fill_n(cbegin(), n_elems_v, init_value);
+			temp_tensor._data = nullptr;
 		}
 
-		template <typename Generator>
-		constexpr Tensor(Generator const& g) : Tensor()
+		constexpr Tensor(Tensor<V, i_integrals_t<n_dims_v>, Ds...> const& other_tensor) : Tensor()
 		{
-			std::generate_n(cbegin(), n_elems_v, g);
+			*_data = *other_tensor._data;
 		}
 
-		constexpr V& operator()(Indices... indices)
+		constexpr auto operator()(Indices... indices) -> V&
 		{
 			return _impl_get_at_index<Indices...>(indices...);
 		}
 
-		constexpr V const& operator()(Indices... indices) const
+		constexpr auto operator()(Indices... indices) const -> V const&
 		{
 			return _impl_get_at_index<Indices...>(indices...);
 		}
 
 		constexpr auto begin()
 		{
-			return _data.begin();
+			return _data->begin();
 		}
 
 		constexpr auto end()
 		{
-			return _data.end();
+			return _data->end();
+		}
+
+		constexpr auto cbegin() -> V* const
+		{
+			return _impl_GetVals<i_zeros_t<n_dims_v>>::_impl_cbegin(*this);
+		}
+
+		constexpr auto cend() -> V* const
+		{
+			return cbegin() + n_elems_v;
+		}
+
+		constexpr auto cbegin() const -> V const* const
+		{
+			return _impl_GetVals<i_zeros_t<n_dims_v>>::_impl_cbegin_const(*this);
+		}
+
+		constexpr auto cend() const -> V const* const
+		{
+			return cbegin() + n_elems_v;
+		}
+		
+	private:
+		template <typename VList>
+		struct _impl_GetVals;
+
+		template <size_t... Vs>
+		struct _impl_GetVals<value_list<Vs...>>
+		{
+			constexpr static auto _impl_cbegin(Tensor<V, std::tuple<Indices...>, Ds...>& encloser) -> V*
+			{
+				return &encloser(Vs...);
+			}
+
+			constexpr static auto _impl_cbegin_const(Tensor<V, std::tuple<Indices...>, Ds...> const& encloser) -> V const*
+			{
+				return &encloser(Vs...);
+			}
+		};
+
+		template <typename T, typename... Ts>
+		constexpr auto _impl_get_at_index(T N, Ts... Ns) -> auto &
+		{
+			if constexpr (sizeof...(Ts) > 0)
+			{
+				return _impl_get_at_index(Ns...)[N];
+			}
+			else
+			{
+				return (*_data)[N];
+			}
+		}
+
+		template <typename T, typename... Ts>
+		constexpr auto _impl_get_at_index(T N, Ts... Ns) const -> auto &
+		{
+			if constexpr (sizeof...(Ts) > 0)
+			{
+				return _impl_get_at_index(Ns...)[N];
+			}
+			else
+			{
+				return (*_data)[N];
+			}
 		}
 	};
 
@@ -354,22 +371,218 @@ namespace TTest
 		template <typename V, size_t... Ds>
 		constexpr static auto MakeZeroTensor()
 		{
-			return MakeUniformTensor<V, Ds...>(V{ 0 });
+			Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> tensor;
+			std::uninitialized_fill(tensor.cbegin(), tensor.cend(), V{ 0 });
+			return std::move(tensor);
 		}
 
 		template <typename V, size_t... Ds>
-		constexpr static auto MakeUniformTensor(V const& init_value)
+		constexpr static auto MakeTensorWithInitValue(V const& init_value)
 		{
-			return Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...>{init_value};
+			Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> tensor;
+			std::uninitialized_fill(tensor.cbegin(), tensor.cend(), init_value);
+			return std::move(tensor);
 		}
 
 		template <typename V, size_t... Ds>
-		constexpr static auto MakeRandomTensor(V const& min_value, V const& max_value)
+		constexpr static auto MakeTensorWithRandomValues(V const& min_value, V const& max_value)
 		{
 			std::random_device random_device;
 			std::mt19937 rng{ random_device() };
 			std::uniform_real_distribution<V> distribution{ min_value, max_value };
-			return Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...>{[&]() {return distribution(rng); }};
+			Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> tensor;
+			std::generate(tensor.cbegin(), tensor.cend(), [&]() {return distribution(rng); });
+			return std::move(tensor);
 		}
 	};
+
+	template <typename V1, typename V2, size_t... Ds>
+	constexpr auto operator+(
+		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
+		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	{
+		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
+		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
+		auto it1 = first.cbegin();
+		auto it2 = second.cbegin();
+		for (auto it3 = result.cbegin(); it3 != result.cend(); it1++, it2++, it3++)
+		{
+			*it3 = *it1 + *it2;
+		}
+		return result;
+	}
+
+	template <typename V1, typename V2, size_t... Ds>
+	constexpr auto operator*(
+		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
+		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	{
+		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
+		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
+		auto it1 = first.cbegin();
+		auto it2 = second.cbegin();
+		for (auto it3 = result.cbegin(); it3 != result.cend(); it1++, it2++, it3++)
+		{
+			*it3 = *it1 * *it2;
+		}
+		return result;
+	}
+
+	template <typename V1, typename V2, size_t... Ds>
+	constexpr auto operator-(
+		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
+		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	{
+		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
+		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
+		auto it1 = first.cbegin();
+		auto it2 = second.cbegin();
+		for (auto it3 = result.cbegin(); it3 != result.cend(); it1++, it2++, it3++)
+		{
+			*it3 = *it1 - *it2;
+		}
+		return result;
+	}
+
+	template <typename V1, typename V2, size_t... Ds>
+	constexpr auto operator/(
+		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
+		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	{
+		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
+		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
+		auto it1 = first.cbegin();
+		auto it2 = second.cbegin();
+		for (auto it3 = result.cbegin(); it3 != result.cend(); it1++, it2++, it3++)
+		{
+			*it3 = *it1 / *it2;
+		}
+		return result;
+	}
+
+	using std::pow;
+	using std::sin;
+	using std::cos;
+	using std::tan;
+	using std::log;
+
+	template <typename V1, typename V2, size_t... Ds>
+	constexpr auto pow(
+		Tensor<V1, i_integrals_t<sizeof...(Ds)>, Ds...> const& first,
+		Tensor<V2, i_integrals_t<sizeof...(Ds)>, Ds...> const& second)
+	{
+		using value_t = std::decay_t<decltype(std::declval<V1>() + std::declval<V2>())>;
+		auto result = TensorFactory::MakeZeroTensor<value_t, Ds...>();
+		auto it1 = first.cbegin();
+		auto it2 = second.cbegin();
+		for (auto it3 = result.cbegin(); it3 != result.cend(); it1++, it2++, it3++)
+		{
+			*it3 = pow(*it1, *it2);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto operator-(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = -*it1;
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto sin(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = sin(*it1);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto cos(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = cos(*it1);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto tan(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = tan(*it1);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto log(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = log(*it1);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto cosec(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = 1 / sin(*it1);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto sec(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = 1 / cos(*it1);
+		}
+		return result;
+	}
+
+	template <typename V, size_t... Ds>
+	constexpr auto tan(
+		Tensor<V, i_integrals_t<sizeof...(Ds)>, Ds...> const& first)
+	{
+		auto result = TensorFactory::MakeZeroTensor<V, Ds...>();
+		auto it1 = first.cbegin();
+		for (auto it2 = result.cbegin(); it2 != result.cend(); it1++, it2++)
+		{
+			*it2 = 1 / tan(*it1);
+		}
+		return result;
+	}
 }
