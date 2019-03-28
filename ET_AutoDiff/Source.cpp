@@ -19,7 +19,7 @@ void AutodiffTest()
 	Et::ConstantExpr C1{ 4 }, C2{ 2 };
 	Et::VariableExpr X1{ 5.53 }, X2{ -3.12 };
 	Et::PlaceholderExpr P;
-
+	
 	auto Y = X1 * X1 + X2 * X2 + C1 * X1 + C2 * X2 + P;
 
 	Et::GradientDescentOptimizer Optimizer{ Y };
@@ -40,6 +40,37 @@ void AutodiffTest()
 	std::cout << "Final Value : " << Optimizer.GetPostResult() << std::endl;
 }
 
+void AutodiffTestTest()
+{
+	using namespace Et_test;
+	ConstantExpr C1{ 4 }, C2{ 2 };
+	VariableExpr X1{ 5.53 }, X2{ -3.12 };
+	PlaceholderExpr P;
+
+	auto Y = C1 + X1 + P;
+	
+	GradientDescentOptimizer Optimizer{ Y };
+	Optimizer.FeedPlaceholders(H{ P,4.3 });
+	
+	size_t Iterations = 100;
+
+	for (size_t i = 0; i < Iterations; i++)
+	{
+		std::cout << "Value at #" << i + 1 << " : " <<
+
+			Optimizer
+			.ForwardPass()
+			.Minimize(0.01)
+			.GetPreResult()
+
+		<< std::endl;
+	}
+
+	Optimizer.Terminate();
+
+	std::cout << std::endl << "Final Value : " << Optimizer.GetPostResult() << std::endl;
+}
+
 void TensorTests()
 {
 	auto x = TTest::TensorFactory::MakeTensorWithInitValue<double, 100, 10>(5.0);
@@ -53,8 +84,9 @@ int main()
 {
 	auto begin = std::chrono::high_resolution_clock::now();
 
+	AutodiffTestTest();
 	//AutodiffTest();
-	TensorTests();
+	//TensorTests();
 
 	auto end = std::chrono::high_resolution_clock::now();
 

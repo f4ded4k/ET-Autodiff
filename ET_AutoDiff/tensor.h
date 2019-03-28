@@ -268,6 +268,7 @@ namespace TTest
 	public:
 		constexpr static size_t n_dims_v = sizeof...(Ds);
 		constexpr static size_t n_elems_v = total_size_v<Ds...>;
+		using elem_t = V;
 
 	private:
 		using array_t = nD_array_t<V, Ds...>;
