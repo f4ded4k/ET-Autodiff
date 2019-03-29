@@ -139,6 +139,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="et_autodiff.h" />
+    <ClInclude Include="et_tensor.h" />
+    <ClInclude Include="my_traits.h" />
     <ClInclude Include="tensor.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

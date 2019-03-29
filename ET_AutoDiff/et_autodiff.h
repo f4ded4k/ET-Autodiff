@@ -3,7 +3,10 @@
 #include <type_traits>
 #include <tuple>
 #include <cmath>
+#include <optional>
 #include "tensor.h"
+#include "et_tensor.h"
+#include "my_traits.h"
 
 namespace Et {
 
@@ -861,29 +864,23 @@ namespace Et {
 	};
 }
 
-#pragma once
-
-#include <type_traits>
-#include <optional>
-#include "tensor.h"
-
 namespace Et_test
 {
 	// Aliases for basic scalar types.
-	using ScalarD = Num::Scalar<double>;
-	using ScalarL = Num::Scalar<long double>;
+	using ScalarD = Tensor<double, 1>;
+	using ScalarL = Tensor<long double, 1>;
 
 	// Base class for all expressions.
 	struct BaseExpr {};
 
-	// Identifier for special kinds of expressions.
+	// Identifier for specific types of expressions.
 	struct TerminalExpr {};
 	struct OperationExpr {};
 	struct TrainableExpr {};
 	struct BinaryExpr {};
 	struct UnaryExpr {};
 
-	// Returns true if all types are of the specific kind.
+	// Returns true if all types are of the specific type.
 	template<typename... T>
 	constexpr bool is_expr_v = std::conjunction_v<std::is_base_of<BaseExpr, std::decay_t<T>>...>;
 
@@ -903,7 +900,7 @@ namespace Et_test
 	constexpr bool is_unary_operation_expr_v = std::conjunction_v<std::is_base_of<UnaryExpr, std::decay_t<T>>...>;
 
 	// Terminal expression containing a constant value that can't be learnt.
-	template <typename V, typename = std::enable_if_t<Num::is_tensor_v<V>>>
+	template <typename V, typename = std::enable_if_t<is_tensor_v<V>>>
 	class ConstantExpr : private BaseExpr, private TerminalExpr
 	{
 	public:
@@ -936,7 +933,7 @@ namespace Et_test
 	ConstantExpr(long double&&)->ConstantExpr<ScalarL>;
 
 	// Terminal expression containing a placeholder value that can't be learnt.
-	template <typename V, typename = std::enable_if_t<Num::is_tensor_v<V>>>
+	template <typename V, typename = std::enable_if_t<is_tensor_v<V>>>
 	class PlaceholderExpr : private BaseExpr, private TerminalExpr
 	{
 	public:
@@ -977,7 +974,7 @@ namespace Et_test
 	PlaceholderExpr()->PlaceholderExpr<ScalarD>;
 
 	// Terminal expression containing a variable value that can be learnt.
-	template <typename V, typename = std::enable_if_t<Num::is_tensor_v<V>>>
+	template <typename V, typename = std::enable_if_t<is_tensor_v<V>>>
 	class VariableExpr : private BaseExpr, private TerminalExpr, private TrainableExpr
 	{
 	public:
@@ -1014,45 +1011,6 @@ namespace Et_test
 
 	VariableExpr(long double&&)->VariableExpr<ScalarL>;
 
-	// A container type for variable number of values analogous to std::tuple for types.
-	template <typename V, V... Vs>
-	struct value_list
-	{
-		constexpr static size_t length = sizeof...(Vs);
-		using value_t = V;
-	};
-
-	// Utility metafunction to concatenate two value_lists of same type.
-	template <typename V, V... V1s, V... V2s>
-	constexpr auto value_list_cat(value_list<V, V1s...> const&, value_list<V, V2s...> const&)
-	{
-		return value_list<V, V1s..., V2s...>{};
-	}
-
-	// Implementation of value_list_element_v.
-	template <typename VL, size_t Curr, size_t Query>
-	struct _impl_value_list_element;
-
-	template <typename V, V F, V... Vs, size_t I>
-	struct _impl_value_list_element<value_list<V, F, Vs...>, I, I>
-	{
-		constexpr static V value = F;
-	};
-
-	template <typename V, V F, V... Vs, size_t Curr, size_t Query>
-	struct _impl_value_list_element<value_list<V, F, Vs...>, Curr, Query>
-	{
-		constexpr static V value = _impl_value_list_element<value_list<V, Vs...>, Curr + 1, Query>::value;
-	};
-
-	// Alias for _impl_value_list_element::value.
-	template <typename VL, size_t Curr, size_t Query>
-	constexpr typename VL::value_t _impl_value_list_element_v = _impl_value_list_element<VL, Curr, Query>::value;
-
-	// Returns the Query-th value from the value_list VL.
-	template <typename VL, size_t Query>
-	constexpr typename VL::value_t value_list_element_v = _impl_value_list_element_v<VL, 0, Query>;
-
 	// Container for pointer to an expression and it's child indices.
 	template <typename E, typename VL>
 	class ExprHolder;
@@ -1075,18 +1033,6 @@ namespace Et_test
 		}
 	};
 
-	// Utility metafunction to get J-th value from I-th element in the tuple.
-	template <typename Tup, size_t I, size_t J>
-	struct child_index_utility
-	{
-		constexpr static typename std::tuple_element_t<I, Tup>::child_list_t::value_t value =
-			value_list_element_v<typename std::tuple_element_t<I, Tup>::child_list_t, J>;
-	};
-
-	// Returns the J-th value from the I-th element in the tuple.
-	template <typename Tup, size_t I, size_t J>
-	constexpr auto child_index_utility_v = child_index_utility<Tup, I, J>::value;
-
 	// Expression representing addition between two expressions.
 	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
 	class AddExpr : private BaseExpr, private OperationExpr, private TrainableExpr, private BinaryExpr
@@ -1100,7 +1046,6 @@ namespace Et_test
 	private:
 		E1 _first_expr;
 		E2 _second_expr;
-
 		value_t _global_gradient;
 	public:
 		AddExpr(E1&& first_expr, E2&& second_expr) :
@@ -1135,17 +1080,17 @@ namespace Et_test
 
 		void InitializeGradient()
 		{
-			_global_gradient = 0.0;
+			_global_gradient = value_t{ 0.0 };
 		}
 
 		void ResetGradient()
 		{
-			_global_gradient = 0.0;
+			_global_gradient = value_t{ 0.0 };
 		}
 
 		void TerminateGradient()
 		{
-			_global_gradient = 0.0;
+			_global_gradient = value_t{ 0.0 };
 		}
 	};
 
@@ -1155,9 +1100,9 @@ namespace Et_test
 
 	// Operator overload for AddExpr.
 	template <typename E1, typename E2, typename = std::enable_if_t<is_expr_v<E1, E2>>>
-	auto operator+(E1&& first_expr, E2&& second_expr) -> AddExpr<E1, E2>
+	auto operator+(E1&& first_expr, E2&& second_expr)
 	{
-		return { std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
+		return AddExpr<E1, E2>{ std::forward<E1>(first_expr), std::forward<E2>(second_expr) };
 	}
 
 	// Utility metafunction that computes a tuple containing all expression types in DFS order.
@@ -1274,18 +1219,18 @@ namespace Et_test
 			return *this;
 		}
 
-		GradientDescentOptimizer& Minimize(long double learning_rate)
+		GradientDescentOptimizer& Minimize(double learning_rate)
 		{
 			_InitializeGradients<0>();
-			std::get<tuple_size_v - 1>(_tuple).GetExpr().AddGradient(-learning_rate);
+			std::get<tuple_size_v - 1>(_tuple).GetExpr().AddGradient(typename E::value_t{ -learning_rate });
 			_BackwardPass<tuple_size_v - 1>();
 			return *this;
 		}
 
-		GradientDescentOptimizer & Maximize(long double learning_rate)
+		GradientDescentOptimizer& Maximize(double learning_rate)
 		{
 			_InitializeGradients<0>();
-			std::get<tuple_size_v - 1>(_tuple).GetExpr().AddGradient(1.0);
+			std::get<tuple_size_v - 1>(_tuple).GetExpr().AddGradient(typename E::value_t{ learning_rate });
 			_BackwardPass<tuple_size_v - 1>();
 			return *this;
 		}

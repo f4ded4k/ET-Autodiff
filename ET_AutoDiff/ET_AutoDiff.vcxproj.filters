@@ -32,5 +32,11 @@
     <ClInclude Include="tensor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="my_traits.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="et_tensor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

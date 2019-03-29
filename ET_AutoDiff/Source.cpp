@@ -3,6 +3,7 @@
 #include <iostream>
 #include <chrono>
 #include "et_autodiff.h"
+#include "et_tensor.h"
 
 #if defined(_DEBUG)
 template <class T> constexpr std::string_view
@@ -43,14 +44,14 @@ void AutodiffTest()
 void AutodiffTestTest()
 {
 	using namespace Et_test;
-	ConstantExpr C1{ 4 }, C2{ 2 };
-	VariableExpr X1{ 5.53 }, X2{ -3.12 };
-	PlaceholderExpr P;
+	ConstantExpr C1{ Tensor<double,123>(4) }, C2{ Tensor<double,123>(2.4) };
+	VariableExpr X1{ Tensor<double,123>(5.53) }, X2{ Tensor<double,123>(-3.12) };
+	PlaceholderExpr<Tensor<double, 123>> P;
 
 	auto Y = C1 + X1 + P;
 	
 	GradientDescentOptimizer Optimizer{ Y };
-	Optimizer.FeedPlaceholders(H{ P,4.3 });
+	Optimizer.FeedPlaceholders(H{ P,Tensor<double,123>(4.3) });
 	
 	size_t Iterations = 100;
 
@@ -61,14 +62,24 @@ void AutodiffTestTest()
 			Optimizer
 			.ForwardPass()
 			.Minimize(0.01)
-			.GetPreResult()
+			.GetPreResult()(5)
 
-		<< std::endl;
+			<< std::endl;
 	}
 
 	Optimizer.Terminate();
 
-	std::cout << std::endl << "Final Value : " << Optimizer.GetPostResult() << std::endl;
+	std::cout << std::endl << "Final Value : " << Optimizer.GetPostResult()(5) << std::endl;
+}
+
+void TensorTestTest()
+{
+	using namespace Et_test;
+
+	Tensor<int, 4, 5> a(4);
+	Tensor<int, 5, 2> b(2);
+	auto r = matmul(a, b);
+	std::cout << r(0, 1) << std::endl; 
 }
 
 void TensorTests()
@@ -85,6 +96,7 @@ int main()
 	auto begin = std::chrono::high_resolution_clock::now();
 
 	AutodiffTestTest();
+	//TensorTestTest();
 	//AutodiffTest();
 	//TensorTests();
 
